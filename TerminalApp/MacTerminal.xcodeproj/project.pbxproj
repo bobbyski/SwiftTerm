@@ -14,6 +14,7 @@
 		49C75E522419C917008977FE /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 49C75E512419C917008977FE /* SwiftTerm */; };
 		49E855272427A3B400A3C3AB /* DebugViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E855262427A3B400A3C3AB /* DebugViewController.swift */; };
 		49F8A84024390F5200EF9C97 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F8A83F24390F5200EF9C97 /* AppDelegate.swift */; };
+		C5858CDE26D821D300A0498B /* BASICViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5858CDD26D821D300A0498B /* BASICViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +30,7 @@
 		49E855262427A3B400A3C3AB /* DebugViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugViewController.swift; sourceTree = "<group>"; };
 		49F8A83F24390F5200EF9C97 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		757B4637245840BF00CFAC62 /* SwiftTerm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftTerm; path = ..; sourceTree = "<group>"; };
+		C5858CDD26D821D300A0498B /* BASICViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASICViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,6 +57,7 @@
 		49BD1A51224207B4005A2252 = {
 			isa = PBXGroup;
 			children = (
+				C5858CDB26D81BF600A0498B /* BASIC */,
 				757B4637245840BF00CFAC62 /* SwiftTerm */,
 				49C75E402419C7E9008977FE /* MacTerminal */,
 				49BD1A5B224207B5005A2252 /* Products */,
@@ -85,6 +88,22 @@
 				49E855262427A3B400A3C3AB /* DebugViewController.swift */,
 			);
 			path = MacTerminal;
+			sourceTree = "<group>";
+		};
+		C5858CDB26D81BF600A0498B /* BASIC */ = {
+			isa = PBXGroup;
+			children = (
+				C5858CDC26D81C0500A0498B /* UI */,
+			);
+			path = BASIC;
+			sourceTree = "<group>";
+		};
+		C5858CDC26D81C0500A0498B /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				C5858CDD26D821D300A0498B /* BASICViewController.swift */,
+			);
+			path = UI;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -166,6 +185,7 @@
 				49F8A84024390F5200EF9C97 /* AppDelegate.swift in Sources */,
 				49C75E442419C7E9008977FE /* ViewController.swift in Sources */,
 				49E855272427A3B400A3C3AB /* DebugViewController.swift in Sources */,
+				C5858CDE26D821D300A0498B /* BASICViewController.swift in Sources */,
 				49C75E462419C7E9008977FE /* Document.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

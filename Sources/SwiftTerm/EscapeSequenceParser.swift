@@ -322,6 +322,7 @@ public class EscapeSequenceParser {
     /// }
     /// ```
     public var oscHandlers: [Int:OscHandler] = [:]
+    var privateSequenceHandlers: [TerminalPrivateSequenceHandler] = []
 
     var activeDcsHandler: DcsHandler? = nil
     var errorHandler: (ParsingState) -> ParsingState = { (state : ParsingState) -> ParsingState in return state; }
@@ -542,6 +543,9 @@ public class EscapeSequenceParser {
         case 777:  terminal.oscNotification(data)
         case 1337: terminal.osciTerm2(data)
         default:
+            if dispatchPrivateSequence(kind: .osc, command: code, data: data) {
+                return
+            }
             oscHandlerFallback(code, data)
         }
     }
@@ -552,11 +556,25 @@ public class EscapeSequenceParser {
             return
         }
 
+        if dispatchPrivateSequence(kind: .apc, command: Int(command), data: content) {
+            return
+        }
+
         switch command {
         case 0x47: terminal.handleKittyGraphics(content)  // G
         default:
             apcHandlerFallback(command, content)
         }
+    }
+
+    private func dispatchPrivateSequence(kind: TerminalPrivateSequenceKind, command: Int, data: ArraySlice<UInt8>) -> Bool {
+        let sequence = TerminalPrivateSequence(kind: kind, command: command, data: data)
+        for handler in privateSequenceHandlers {
+            if handler(sequence) {
+                return true
+            }
+        }
+        return false
     }
 
     func dispatchDcs(collect: cstring, code: UInt8, pars: [Int]) -> DcsHandler? {

@@ -9,6 +9,14 @@
 #if os(macOS) || os(iOS) || os(visionOS)
 import Foundation
 import CoreGraphics
+#if canImport(ImageIO)
+import ImageIO
+#endif
+#if os(macOS)
+import AppKit
+#elseif os(iOS) || os(visionOS)
+import UIKit
+#endif
 
 /// Receives the SVG body while SwiftTerm is exporting a terminal snapshot.
 ///
@@ -106,6 +114,31 @@ public extension TerminalView {
         }
 
         for row in 0..<rows {
+            var runText = ""
+            var runX: CGFloat = 0
+            var runEndColumn = 0
+            var runForeground = ""
+            var runWeight = ""
+            var runItalic = ""
+            var runDecoration = ""
+
+            func flushTextRun() {
+                guard !runText.isEmpty else {
+                    return
+                }
+                let y = CGFloat(row) * cellHeight
+                body.append(svgTextElement(x: runX,
+                                           y: y + baseline,
+                                           text: runText,
+                                           fill: runForeground,
+                                           fontName: fontName,
+                                           fontSize: fontSize,
+                                           weight: runWeight,
+                                           italic: runItalic,
+                                           decoration: runDecoration))
+                runText = ""
+            }
+
             for col in 0..<cols {
                 guard let charData = terminal.getCharData(col: col, row: row),
                       charData.width > 0 else {
@@ -114,19 +147,37 @@ public extension TerminalView {
 
                 let attribute = charData.attribute
                 let x = CGFloat(col) * cellWidth
-                let y = CGFloat(row) * cellHeight
                 let character = String(terminal.getCharacter(for: charData))
                 if character.isEmpty || character == "\u{0}" {
+                    flushTextRun()
                     continue
                 }
 
                 let foregroundColor = svgHexColor(for: attribute.fg, defaultColor: terminal.foregroundColor)
-                let escaped = svgEscapedText(character)
                 let weight = attribute.style.contains(.bold) ? " font-weight=\"700\"" : ""
                 let italic = attribute.style.contains(.italic) ? " font-style=\"italic\"" : ""
                 let decoration = svgTextDecoration(for: attribute.style)
-                body.append("<text x=\"\(svgNumber(x))\" y=\"\(svgNumber(y + baseline))\" fill=\"\(foregroundColor)\" font-family=\"\(svgEscapedAttribute(fontName))\" font-size=\"\(svgNumber(fontSize))\"\(weight)\(italic)\(decoration)>\(escaped)</text>")
+
+                let canAppend = !runText.isEmpty &&
+                    runEndColumn == col &&
+                    runForeground == foregroundColor &&
+                    runWeight == weight &&
+                    runItalic == italic &&
+                    runDecoration == decoration
+
+                if !canAppend {
+                    flushTextRun()
+                    runX = x
+                    runForeground = foregroundColor
+                    runWeight = weight
+                    runItalic = italic
+                    runDecoration = decoration
+                }
+
+                runText.append(character)
+                runEndColumn = col + max(Int(charData.width), 1)
             }
+            flushTextRun()
         }
 
         body.append(contentsOf: svgImagePlaceholderElements(cols: cols,
@@ -194,10 +245,16 @@ public extension TerminalView {
                     } else {
                         imageLabel = "terminal image"
                     }
-                    elements.append(svgImagePlaceholderElement(rect: rect,
-                                                               label: imageLabel,
-                                                               fontName: fontName,
-                                                               fontSize: fontSize))
+                    if let dataURI = SwiftTermSVGExportSupport.imageDataURI(for: image.image) {
+                        elements.append(svgImageElement(rect: rect,
+                                                        label: imageLabel,
+                                                        dataURI: dataURI))
+                    } else {
+                        elements.append(svgImagePlaceholderElement(rect: rect,
+                                                                   label: imageLabel,
+                                                                   fontName: fontName,
+                                                                   fontSize: fontSize))
+                    }
                 }
             }
 
@@ -228,14 +285,41 @@ public extension TerminalView {
                                   y: y,
                                   width: CGFloat(record.cols) * cellWidth,
                                   height: CGFloat(record.rows) * cellHeight)
-                elements.append(svgImagePlaceholderElement(rect: rect,
-                                                           label: "kitty placeholder \(placeholder.imageId)",
-                                                           fontName: fontName,
-                                                           fontSize: fontSize))
+                let label = "kitty placeholder \(placeholder.imageId)"
+                if let kittyImage = terminal.kittyGraphicsState.imagesById[placeholder.imageId],
+                   let dataURI = SwiftTermSVGExportSupport.imageDataURI(for: kittyImage.payload) {
+                    elements.append(svgImageElement(rect: rect,
+                                                    label: label,
+                                                    dataURI: dataURI))
+                } else {
+                    elements.append(svgImagePlaceholderElement(rect: rect,
+                                                               label: label,
+                                                               fontName: fontName,
+                                                               fontSize: fontSize))
+                }
             }
         }
 
         return elements
+    }
+
+    private func svgTextElement(x: CGFloat,
+                                y: CGFloat,
+                                text: String,
+                                fill: String,
+                                fontName: String,
+                                fontSize: CGFloat,
+                                weight: String,
+                                italic: String,
+                                decoration: String) -> String {
+        "<text x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" fill=\"\(fill)\" font-family=\"\(svgEscapedAttribute(fontName))\" font-size=\"\(svgNumber(fontSize))\"\(weight)\(italic)\(decoration) xml:space=\"preserve\">\(svgEscapedText(text))</text>"
+    }
+
+    private func svgImageElement(rect: CGRect, label: String, dataURI: String) -> String {
+        guard rect.width > 0, rect.height > 0 else {
+            return ""
+        }
+        return "<image data-swiftterm-image=\"\(svgEscapedAttribute(label))\" x=\"\(svgNumber(rect.minX))\" y=\"\(svgNumber(rect.minY))\" width=\"\(svgNumber(rect.width))\" height=\"\(svgNumber(rect.height))\" href=\"\(dataURI)\" preserveAspectRatio=\"none\"/>"
     }
 
     private func svgImagePlaceholderElement(rect: CGRect, label: String, fontName: String, fontSize: CGFloat) -> String {
@@ -361,6 +445,85 @@ public extension TerminalView {
     private func svgEscapedAttribute(_ value: String) -> String {
         svgEscapedText(value)
             .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+}
+
+enum SwiftTermSVGExportSupport {
+    static func imageDataURI(for image: TTImage) -> String? {
+        #if os(macOS)
+        if let tiff = image.tiffRepresentation,
+           let bitmap = NSBitmapImageRep(data: tiff),
+           let png = bitmap.representation(using: .png, properties: [:]) {
+            return pngDataURI(png)
+        }
+
+        var rect = CGRect(origin: .zero, size: image.size)
+        guard let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil),
+              let png = pngData(from: cgImage) else {
+            return nil
+        }
+        return pngDataURI(png)
+        #else
+        guard let png = image.pngData() else {
+            return nil
+        }
+        return pngDataURI(png)
+        #endif
+    }
+
+    static func imageDataURI(for payload: KittyGraphicsPayload) -> String? {
+        switch payload {
+        case .png(let data):
+            return pngDataURI(data)
+        case .rgba(let bytes, let width, let height):
+            guard let png = pngDataFromRGBA(bytes: bytes, width: width, height: height) else {
+                return nil
+            }
+            return pngDataURI(png)
+        }
+    }
+
+    static func pngDataURI(_ data: Data) -> String {
+        "data:image/png;base64,\(data.base64EncodedString())"
+    }
+
+    static func pngDataFromRGBA(bytes: [UInt8], width: Int, height: Int) -> Data? {
+        guard width > 0, height > 0, bytes.count >= width * height * 4 else {
+            return nil
+        }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let provider = CGDataProvider(data: Data(bytes).subdata(in: 0..<(width * height * 4)) as CFData),
+              let image = CGImage(width: width,
+                                  height: height,
+                                  bitsPerComponent: 8,
+                                  bitsPerPixel: 32,
+                                  bytesPerRow: width * 4,
+                                  space: colorSpace,
+                                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                                  provider: provider,
+                                  decode: nil,
+                                  shouldInterpolate: true,
+                                  intent: .defaultIntent) else {
+            return nil
+        }
+        return pngData(from: image)
+    }
+
+    static func pngData(from image: CGImage) -> Data? {
+        #if canImport(ImageIO)
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil) else {
+            return nil
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            return nil
+        }
+        return data as Data
+        #else
+        return nil
+        #endif
     }
 }
 #endif

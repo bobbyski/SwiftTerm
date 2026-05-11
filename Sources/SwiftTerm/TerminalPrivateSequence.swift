@@ -7,6 +7,9 @@ public enum TerminalPrivateSequenceKind: Equatable {
 
     /// Application Program Command.
     case apc
+
+    /// Device Control String.
+    case dcs
 }
 
 /// A private or extension sequence received by the terminal parser.
@@ -18,11 +21,21 @@ public struct TerminalPrivateSequence {
     public let kind: TerminalPrivateSequenceKind
     public let command: Int
     public let data: ArraySlice<UInt8>
+    public let intermediates: [UInt8]
+    public let parameters: [Int]
 
-    public init(kind: TerminalPrivateSequenceKind, command: Int, data: ArraySlice<UInt8>) {
+    public init(
+        kind: TerminalPrivateSequenceKind,
+        command: Int,
+        data: ArraySlice<UInt8>,
+        intermediates: [UInt8] = [],
+        parameters: [Int] = []
+    ) {
         self.kind = kind
         self.command = command
         self.data = data
+        self.intermediates = intermediates
+        self.parameters = parameters
     }
 }
 

@@ -120,6 +120,42 @@ protocol  DcsHandler {
     func unhook ()
 }
 
+private final class PrivateDcsHandler: DcsHandler {
+    weak var parser: EscapeSequenceParser?
+    private var collect: cstring = []
+    private var parameters: [Int] = []
+    private var flag: UInt8 = 0
+    private var data: [UInt8] = []
+
+    init(parser: EscapeSequenceParser) {
+        self.parser = parser
+    }
+
+    func hook(collect: cstring, parameters: [Int], flag: UInt8) {
+        self.collect = collect
+        self.parameters = parameters
+        self.flag = flag
+        data.removeAll(keepingCapacity: true)
+    }
+
+    func put(data: ArraySlice<UInt8>) {
+        self.data.append(contentsOf: data)
+    }
+
+    func unhook() {
+        guard let parser else {
+            return
+        }
+        _ = parser.dispatchPrivateSequence(
+            kind: .dcs,
+            command: Int(flag),
+            data: data[...],
+            intermediates: collect,
+            parameters: parameters
+        )
+    }
+}
+
 /// The engine that drives the parsing of the data stream for the terminal.
 ///
 /// It is used by the ``Terminal`` to interpret the sequence of bytes coming, and
@@ -567,8 +603,20 @@ public class EscapeSequenceParser {
         }
     }
 
-    private func dispatchPrivateSequence(kind: TerminalPrivateSequenceKind, command: Int, data: ArraySlice<UInt8>) -> Bool {
-        let sequence = TerminalPrivateSequence(kind: kind, command: command, data: data)
+    func dispatchPrivateSequence(
+        kind: TerminalPrivateSequenceKind,
+        command: Int,
+        data: ArraySlice<UInt8>,
+        intermediates: [UInt8] = [],
+        parameters: [Int] = []
+    ) -> Bool {
+        let sequence = TerminalPrivateSequence(
+            kind: kind,
+            command: command,
+            data: data,
+            intermediates: intermediates,
+            parameters: parameters
+        )
         for handler in privateSequenceHandlers {
             if handler(sequence) {
                 return true
@@ -586,7 +634,7 @@ public class EscapeSequenceParser {
         } else if collect.isEmpty && code == 0x71 {  // "q"
             return SixelDcsHandler(terminal: terminal)
         }
-        return nil
+        return PrivateDcsHandler(parser: self)
     }
 
     var escHandlerFallback: EscHandlerFallback = { (collect: cstring, flag: UInt8) in

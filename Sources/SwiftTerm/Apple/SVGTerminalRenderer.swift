@@ -83,17 +83,41 @@ public extension TerminalView {
                     continue
                 }
 
+                let backgroundColor = svgHexColor(for: charData.attribute.bg, defaultColor: terminal.backgroundColor)
+                guard backgroundColor != background else {
+                    continue
+                }
+
+                let x = CGFloat(col) * cellWidth
+                let y = CGFloat(row) * cellHeight
+                body.append("<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(cellWidth * CGFloat(max(Int(charData.width), 1))))\" height=\"\(svgNumber(cellHeight))\" fill=\"\(backgroundColor)\"/>")
+            }
+        }
+
+        for row in 0..<rows {
+            let bufferRow = terminal.displayBuffer.yDisp + row
+            if let selectionColumns = selectedColumnsRange(row: bufferRow, cols: cols) {
+                let x = CGFloat(selectionColumns.lowerBound) * cellWidth
+                let y = CGFloat(row) * cellHeight
+                let selectionWidth = CGFloat(selectionColumns.count) * cellWidth
+                let selectionColor = svgHexColor(for: selectedTextBackgroundColor)
+                body.append("<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(selectionWidth))\" height=\"\(svgNumber(cellHeight))\" fill=\"\(selectionColor)\"/>")
+            }
+        }
+
+        for row in 0..<rows {
+            for col in 0..<cols {
+                guard let charData = terminal.getCharData(col: col, row: row),
+                      charData.width > 0 else {
+                    continue
+                }
+
                 let attribute = charData.attribute
                 let x = CGFloat(col) * cellWidth
                 let y = CGFloat(row) * cellHeight
                 let character = String(terminal.getCharacter(for: charData))
                 if character.isEmpty || character == "\u{0}" {
                     continue
-                }
-
-                let backgroundColor = svgHexColor(for: attribute.bg, defaultColor: terminal.backgroundColor)
-                if backgroundColor != background {
-                    body.append("<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(cellWidth * CGFloat(max(Int(charData.width), 1))))\" height=\"\(svgNumber(cellHeight))\" fill=\"\(backgroundColor)\"/>")
                 }
 
                 let foregroundColor = svgHexColor(for: attribute.fg, defaultColor: terminal.foregroundColor)
@@ -103,6 +127,17 @@ public extension TerminalView {
                 let decoration = svgTextDecoration(for: attribute.style)
                 body.append("<text x=\"\(svgNumber(x))\" y=\"\(svgNumber(y + baseline))\" fill=\"\(foregroundColor)\" font-family=\"\(svgEscapedAttribute(fontName))\" font-size=\"\(svgNumber(fontSize))\"\(weight)\(italic)\(decoration)>\(escaped)</text>")
             }
+        }
+
+        body.append(contentsOf: svgImagePlaceholderElements(cols: cols,
+                                                            rows: rows,
+                                                            cellWidth: cellWidth,
+                                                            cellHeight: cellHeight,
+                                                            fontName: fontName,
+                                                            fontSize: fontSize))
+
+        if let cursor = svgCursorElement(cols: cols, rows: rows, cellWidth: cellWidth, cellHeight: cellHeight) {
+            body.append(cursor)
         }
 
         additionalContent?(context)
@@ -115,6 +150,138 @@ public extension TerminalView {
         \(body.joined(separator: "\n"))
         </svg>
         """
+    }
+
+    private func svgImagePlaceholderElements(cols: Int,
+                                             rows: Int,
+                                             cellWidth: CGFloat,
+                                             cellHeight: CGFloat,
+                                             fontName: String,
+                                             fontSize: CGFloat) -> [String] {
+        var elements: [String] = []
+        var emittedVirtualPlacements = Set<String>()
+        let displayBuffer = terminal.displayBuffer
+        let isAltBuffer = terminal.isDisplayBufferAlternate
+        var virtualPlacementsByImageId: [UInt32: [KittyPlacementRecord]] = [:]
+        if !terminal.kittyGraphicsState.placementsByKey.isEmpty {
+            for record in terminal.kittyGraphicsState.placementsByKey.values where record.isVirtual && record.isAlternateBuffer == isAltBuffer {
+                virtualPlacementsByImageId[record.imageId, default: []].append(record)
+            }
+        }
+
+        for visibleRow in 0..<rows {
+            guard let line = terminal.getLine(row: visibleRow) else {
+                continue
+            }
+
+            let bufferRow = displayBuffer.yDisp + visibleRow
+            let lineInfo = buildAttributedString(row: bufferRow, line: line, cols: cols)
+            if let images = lineInfo.images {
+                for basicImage in images {
+                    guard let image = basicImage as? AppleImage else {
+                        continue
+                    }
+
+                    let x = CGFloat(image.col) * cellWidth + CGFloat(image.kittyPixelOffsetX)
+                    let y = CGFloat(visibleRow + 1) * cellHeight - CGFloat(image.pixelHeight) + CGFloat(image.kittyPixelOffsetY)
+                    let rect = CGRect(x: x,
+                                      y: y,
+                                      width: CGFloat(image.pixelWidth),
+                                      height: CGFloat(image.pixelHeight))
+                    let imageLabel: String
+                    if let imageId = image.kittyImageId {
+                        imageLabel = "kitty image \(imageId)"
+                    } else {
+                        imageLabel = "terminal image"
+                    }
+                    elements.append(svgImagePlaceholderElement(rect: rect,
+                                                               label: imageLabel,
+                                                               fontName: fontName,
+                                                               fontSize: fontSize))
+                }
+            }
+
+            for placeholder in lineInfo.kittyPlaceholders {
+                guard let records = virtualPlacementsByImageId[placeholder.imageId] else {
+                    continue
+                }
+                guard let record = records.first(where: { record in
+                    if placeholder.placementId != 0 && record.placementId != placeholder.placementId {
+                        return false
+                    }
+                    return record.cols > placeholder.placeholderCol &&
+                        record.rows > placeholder.placeholderRow &&
+                        record.cols > 0 &&
+                        record.rows > 0
+                }) else {
+                    continue
+                }
+
+                let key = "\(placeholder.imageId)-\(record.placementId)-\(visibleRow - placeholder.placeholderRow)-\(placeholder.col - placeholder.placeholderCol)"
+                guard emittedVirtualPlacements.insert(key).inserted else {
+                    continue
+                }
+
+                let x = CGFloat(placeholder.col - placeholder.placeholderCol) * cellWidth + CGFloat(record.pixelOffsetX)
+                let y = CGFloat(visibleRow - placeholder.placeholderRow) * cellHeight + CGFloat(record.pixelOffsetY)
+                let rect = CGRect(x: x,
+                                  y: y,
+                                  width: CGFloat(record.cols) * cellWidth,
+                                  height: CGFloat(record.rows) * cellHeight)
+                elements.append(svgImagePlaceholderElement(rect: rect,
+                                                           label: "kitty placeholder \(placeholder.imageId)",
+                                                           fontName: fontName,
+                                                           fontSize: fontSize))
+            }
+        }
+
+        return elements
+    }
+
+    private func svgImagePlaceholderElement(rect: CGRect, label: String, fontName: String, fontSize: CGFloat) -> String {
+        guard rect.width > 0, rect.height > 0 else {
+            return ""
+        }
+
+        let color = "#66EAD8"
+        let labelSize = max(8, min(fontSize, rect.height * 0.45))
+        let labelX = rect.minX + 4
+        let labelY = rect.minY + max(labelSize + 3, rect.height / 2)
+        return """
+        <g data-swiftterm-image-placeholder="\(svgEscapedAttribute(label))">
+        <rect x="\(svgNumber(rect.minX))" y="\(svgNumber(rect.minY))" width="\(svgNumber(rect.width))" height="\(svgNumber(rect.height))" fill="\(color)" fill-opacity="0.08" stroke="\(color)" stroke-width="1" stroke-dasharray="4 3"/>
+        <line x1="\(svgNumber(rect.minX))" y1="\(svgNumber(rect.minY))" x2="\(svgNumber(rect.maxX))" y2="\(svgNumber(rect.maxY))" stroke="\(color)" stroke-width="1" stroke-opacity="0.55"/>
+        <line x1="\(svgNumber(rect.maxX))" y1="\(svgNumber(rect.minY))" x2="\(svgNumber(rect.minX))" y2="\(svgNumber(rect.maxY))" stroke="\(color)" stroke-width="1" stroke-opacity="0.55"/>
+        <text x="\(svgNumber(labelX))" y="\(svgNumber(labelY))" fill="\(color)" font-family="\(svgEscapedAttribute(fontName))" font-size="\(svgNumber(labelSize))">\(svgEscapedText(label))</text>
+        </g>
+        """
+    }
+
+    private func svgCursorElement(cols: Int, rows: Int, cellWidth: CGFloat, cellHeight: CGFloat) -> String? {
+        guard terminal.cursorHidden == false else {
+            return nil
+        }
+
+        let location = terminal.getCursorLocation()
+        guard location.x >= 0, location.x < cols, location.y >= 0, location.y < rows else {
+            return nil
+        }
+
+        let x = CGFloat(location.x) * cellWidth
+        let y = CGFloat(location.y) * cellHeight
+        let color = svgHexColor(for: caretColor)
+        let minimumStroke = max(min(cellWidth, cellHeight) * 0.12, 1)
+
+        switch terminal.options.cursorStyle {
+        case .blinkBlock, .steadyBlock:
+            return "<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(cellWidth))\" height=\"\(svgNumber(cellHeight))\" fill=\"\(color)\" fill-opacity=\"0.55\"/>"
+        case .blinkUnderline, .steadyUnderline:
+            let height = min(max(minimumStroke, 2), cellHeight)
+            return "<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y + cellHeight - height))\" width=\"\(svgNumber(cellWidth))\" height=\"\(svgNumber(height))\" fill=\"\(color)\"/>"
+        case .blinkBar, .steadyBar:
+            let width = min(max(minimumStroke, 2), cellWidth)
+            return "<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(cellHeight))\" fill=\"\(color)\"/>"
+        }
     }
 
     private func svgTextDecoration(for style: CharacterStyle) -> String {

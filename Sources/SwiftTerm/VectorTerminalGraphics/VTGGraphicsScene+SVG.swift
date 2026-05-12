@@ -1,0 +1,162 @@
+import Foundation
+
+public extension VTGGraphicsScene {
+    /// Export retained VTG primitives as an SVG fragment.
+    ///
+    /// The fragment intentionally omits the root `<svg>` element so callers can
+    /// append it to SwiftTerm's terminal snapshot export or embed it in another
+    /// SVG document.
+    func makeSVGFragment() -> String {
+        var definitions: [String] = []
+        let body = renderPrimitives.enumerated().map { index, primitive in
+            let layer = layer(for: primitive)
+            let offset = offset(for: layer)
+            var fragment = primitive.svgFragment(scene: self)
+            guard offset != .zero, fragment.isEmpty == false else {
+                if let clip = clip(for: layer) {
+                    let clipID = "vtg-layer-\(layer)-clip-\(index)"
+                    definitions.append("<clipPath id=\"\(clipID)\"><rect x=\"\(svgNumber(clip.x))\" y=\"\(svgNumber(clip.y))\" width=\"\(svgNumber(clip.width))\" height=\"\(svgNumber(clip.height))\"/></clipPath>")
+                    fragment = "<g clip-path=\"url(#\(clipID))\">\(fragment)</g>"
+                }
+                return fragment
+            }
+            fragment = "<g transform=\"translate(\(svgNumber(offset.x)) \(svgNumber(offset.y)))\">\(fragment)</g>"
+            if let clip = clip(for: layer) {
+                let clipID = "vtg-layer-\(layer)-clip-\(index)"
+                definitions.append("<clipPath id=\"\(clipID)\"><rect x=\"\(svgNumber(clip.x))\" y=\"\(svgNumber(clip.y))\" width=\"\(svgNumber(clip.width))\" height=\"\(svgNumber(clip.height))\"/></clipPath>")
+                fragment = "<g clip-path=\"url(#\(clipID))\">\(fragment)</g>"
+            }
+            return fragment
+        }
+        let defs = definitions.isEmpty ? "" : "<defs>\n\(definitions.joined(separator: "\n"))\n</defs>\n"
+        return defs + body.joined(separator: "\n")
+    }
+}
+
+private extension VTGPrimitive {
+    /// SVG element for one VTG primitive.
+    func svgFragment(scene: VTGGraphicsScene) -> String {
+        switch self {
+        case .pixel(_, let x, let y, let color):
+            return "<rect x=\"\(svgNumber(x.rounded(.down)))\" y=\"\(svgNumber(y.rounded(.down)))\" width=\"1\" height=\"1\" fill=\"\(color.svgColor)\" fill-opacity=\"\(svgNumber(color.alpha))\"/>"
+
+        case .line(_, let x1, let y1, let x2, let y2, let stroke, let width):
+            return "<line x1=\"\(svgNumber(x1))\" y1=\"\(svgNumber(y1))\" x2=\"\(svgNumber(x2))\" y2=\"\(svgNumber(y2))\" stroke=\"\(stroke.svgColor)\" stroke-opacity=\"\(svgNumber(stroke.alpha))\" stroke-width=\"\(svgNumber(width))\" stroke-linecap=\"round\"/>"
+
+        case .draw(_, let points, let stroke, let width):
+            let coordinates = points.map { "\(svgNumber($0.x)),\(svgNumber($0.y))" }.joined(separator: " ")
+            return "<polyline points=\"\(coordinates)\" fill=\"none\" stroke=\"\(stroke.svgColor)\" stroke-opacity=\"\(svgNumber(stroke.alpha))\" stroke-width=\"\(svgNumber(width))\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+
+        case .curve(_, let curve, let stroke, let width):
+            return "<path d=\"\(curve.svgPathData)\" fill=\"none\" stroke=\"\(stroke.svgColor)\" stroke-opacity=\"\(svgNumber(stroke.alpha))\" stroke-width=\"\(svgNumber(width))\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+
+        case .triangle(_, let p1, let p2, let p3, let stroke, let fill, let lineWidth):
+            let points = [p1, p2, p3].map { "\(svgNumber($0.x)),\(svgNumber($0.y))" }.joined(separator: " ")
+            return "<polygon points=\"\(points)\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
+
+        case .path(_, let commands, let stroke, let fill, let lineWidth):
+            return "<path d=\"\(commands.svgPathData)\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
+
+        case .rect(_, let x, let y, let width, let height, let stroke, let fill, let lineWidth):
+            return "<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
+
+        case .circle(_, let cx, let cy, let radius, let stroke, let fill, let lineWidth):
+            return "<circle cx=\"\(svgNumber(cx))\" cy=\"\(svgNumber(cy))\" r=\"\(svgNumber(radius))\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
+
+        case .ellipse(_, let cx, let cy, let rx, let ry, let stroke, let fill, let lineWidth):
+            return "<ellipse cx=\"\(svgNumber(cx))\" cy=\"\(svgNumber(cy))\" rx=\"\(svgNumber(rx))\" ry=\"\(svgNumber(ry))\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
+
+        case .text(_, let x, let y, let value, let color, let size):
+            return "<text x=\"\(svgNumber(x))\" y=\"\(svgNumber(y + size))\" fill=\"\(color.svgColor)\" fill-opacity=\"\(svgNumber(color.alpha))\" font-family=\"system-ui, sans-serif\" font-size=\"\(svgNumber(size))\">\(svgEscapedText(value))</text>"
+
+        case .image(_, let x, let y, let width, let height, let format, _, let base64):
+            let mimeType = format.lowercased() == "jpg" ? "image/jpeg" : "image/\(format.lowercased())"
+            return "<image x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\" href=\"data:\(mimeType);base64,\(base64)\"/>"
+
+        case .sprite(_, let imageID, let x, let y, let rotation, let scale):
+            guard let asset = scene.spriteAsset(id: imageID) else {
+                return ""
+            }
+            let width = asset.width * scale
+            let height = asset.height * scale
+            let centerX = x + width / 2
+            let centerY = y + height / 2
+            let mimeType = asset.format.lowercased() == "jpg" ? "image/jpeg" : "image/\(asset.format.lowercased())"
+            return "<image x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\" href=\"data:\(mimeType);base64,\(asset.base64)\" transform=\"rotate(\(svgNumber(rotation)) \(svgNumber(centerX)) \(svgNumber(centerY)))\"/>"
+        }
+    }
+
+    /// SVG fill attributes for optional VTG fills.
+    func svgFill(_ color: VTGColor?) -> String {
+        guard let color else {
+            return " fill=\"none\""
+        }
+        return " fill=\"\(color.svgColor)\" fill-opacity=\"\(svgNumber(color.alpha))\""
+    }
+
+    /// SVG stroke attributes for optional VTG strokes.
+    func svgStroke(_ color: VTGColor?, width: Double) -> String {
+        guard let color else {
+            return ""
+        }
+        return " stroke=\"\(color.svgColor)\" stroke-opacity=\"\(svgNumber(color.alpha))\" stroke-width=\"\(svgNumber(width))\""
+    }
+}
+
+private extension VTGCurve {
+    var svgPathData: String {
+        switch self {
+        case .quadratic(let start, let control, let end):
+            return "M \(svgNumber(start.x)) \(svgNumber(start.y)) Q \(svgNumber(control.x)) \(svgNumber(control.y)) \(svgNumber(end.x)) \(svgNumber(end.y))"
+        case .cubic(let start, let control1, let control2, let end):
+            return "M \(svgNumber(start.x)) \(svgNumber(start.y)) C \(svgNumber(control1.x)) \(svgNumber(control1.y)) \(svgNumber(control2.x)) \(svgNumber(control2.y)) \(svgNumber(end.x)) \(svgNumber(end.y))"
+        }
+    }
+}
+
+private extension [VTGPathCommand] {
+    var svgPathData: String {
+        map { command in
+            switch command {
+            case .move(let point):
+                return "M \(svgNumber(point.x)) \(svgNumber(point.y))"
+            case .line(let point):
+                return "L \(svgNumber(point.x)) \(svgNumber(point.y))"
+            case .quadratic(let control, let end):
+                return "Q \(svgNumber(control.x)) \(svgNumber(control.y)) \(svgNumber(end.x)) \(svgNumber(end.y))"
+            case .cubic(let control1, let control2, let end):
+                return "C \(svgNumber(control1.x)) \(svgNumber(control1.y)) \(svgNumber(control2.x)) \(svgNumber(control2.y)) \(svgNumber(end.x)) \(svgNumber(end.y))"
+            case .close:
+                return "Z"
+            }
+        }
+        .joined(separator: " ")
+    }
+}
+
+private extension VTGColor {
+    /// RGB SVG color string; alpha is emitted separately as opacity.
+    var svgColor: String {
+        let red = UInt8(max(0, min(255, (self.red * 255).rounded())))
+        let green = UInt8(max(0, min(255, (self.green * 255).rounded())))
+        let blue = UInt8(max(0, min(255, (self.blue * 255).rounded())))
+        return String(format: "#%02X%02X%02X", red, green, blue)
+    }
+}
+
+/// Format SVG numbers compactly while preserving sub-pixel values when needed.
+private func svgNumber(_ value: Double) -> String {
+    let rounded = value.rounded()
+    if abs(value - rounded) < 0.001 {
+        return String(Int(rounded))
+    }
+    return String(format: "%.3f", value)
+}
+
+/// Escape text payloads for SVG text nodes.
+private func svgEscapedText(_ value: String) -> String {
+    value
+        .replacingOccurrences(of: "&", with: "&amp;")
+        .replacingOccurrences(of: "<", with: "&lt;")
+        .replacingOccurrences(of: ">", with: "&gt;")
+}

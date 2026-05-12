@@ -1,0 +1,172 @@
+import Foundation
+
+/// VTG mouse reporting modes requested by child applications.
+public enum VTGMouseMode: String, Equatable {
+    case click
+    case raw
+    case drag
+    case all
+
+    public var emitsRawMouse: Bool {
+        self == .raw || self == .drag || self == .all
+    }
+
+    public var emitsScroll: Bool {
+        self == .raw || self == .drag || self == .all
+    }
+}
+
+/// Mouse position in VTG pixel coordinates and terminal cell coordinates.
+public struct VTGMouseSnapshot: Equatable {
+    public var x: Int
+    public var y: Int
+    public var cellX: Int
+    public var cellY: Int
+    public var modifiers: String
+
+    public init(x: Int, y: Int, cellX: Int, cellY: Int, modifiers: String) {
+        self.x = x
+        self.y = y
+        self.cellX = cellX
+        self.cellY = cellY
+        self.modifiers = modifiers
+    }
+}
+
+/// Host-side controller for VectorTerminal Graphics protocol state.
+///
+/// `VTGHostController` owns the framework-level parts of VTG integration:
+/// parsing private APC callbacks, mutating the retained scene, tracking
+/// resize/mouse subscriptions, and encoding host responses. Embedding views
+/// still own platform facts: current canvas size, AppKit/UI events, and writing
+/// response bytes to the child process.
+public final class VTGHostController {
+    public let scene = VTGGraphicsScene()
+
+    private let parser = VectorTerminalGraphicsParser()
+    private var lastReportedCanvas: VTGCanvasSize?
+
+    public private(set) var sendsResizeEvents = false
+    public private(set) var sendsMouseEvents = false
+    public private(set) var mouseMode: VTGMouseMode = .click
+
+    public init() {}
+
+    /// Parse and apply a SwiftTerm private sequence.
+    ///
+    /// Returns `nil` when the sequence is not VTG. Returns an empty array when
+    /// it was VTG but produced no immediate host response.
+    public func handlePrivateSequence(
+        _ sequence: TerminalPrivateSequence,
+        canvas: VTGCanvasSize
+    ) -> [String]? {
+        guard let command = parser.command(from: sequence) else {
+            return nil
+        }
+        return process([command], canvas: canvas)
+    }
+
+    /// Apply parsed VTG commands and return immediate host responses.
+    public func process(
+        _ commands: [VectorTerminalGraphicsCommand],
+        canvas: VTGCanvasSize
+    ) -> [String] {
+        var responses: [String] = []
+        for command in commands {
+            responses.append(contentsOf: responsesForCommand(command, canvas: canvas))
+            scene.apply(command)
+        }
+        return responses
+    }
+
+    /// Return a resize event response when the subscribed client should be told.
+    public func resizeResponseIfNeeded(
+        canvas: VTGCanvasSize,
+        force: Bool = false,
+        processRunning: Bool = true
+    ) -> String? {
+        guard sendsResizeEvents, processRunning else {
+            return nil
+        }
+        guard canvas.width > 0, canvas.height > 0 else {
+            return nil
+        }
+        guard force || canvas != lastReportedCanvas else {
+            return nil
+        }
+        lastReportedCanvas = canvas
+        return VTGResponseEncoder.resize(canvas: canvas)
+    }
+
+    /// Return a VTG mouse response when the current mouse mode accepts `type`.
+    public func mouseResponse(
+        type: String,
+        button: Int,
+        snapshot: VTGMouseSnapshot,
+        scrollX: Int? = nil,
+        scrollY: Int? = nil
+    ) -> String? {
+        guard sendsMouseEvents, acceptsMouseEvent(type: type) else {
+            return nil
+        }
+        let hit = scene.hitRegion(at: VTGPoint(x: Double(snapshot.x), y: Double(snapshot.y)))
+        return VTGResponseEncoder.mouse(
+            VTGMouseEventPayload(
+                type: type,
+                button: button,
+                x: snapshot.x,
+                y: snapshot.y,
+                cellX: snapshot.cellX,
+                cellY: snapshot.cellY,
+                modifiers: snapshot.modifiers,
+                scrollX: scrollX,
+                scrollY: scrollY,
+                hitID: hit?.id,
+                targetID: hit?.target
+            )
+        )
+    }
+
+    private func responsesForCommand(
+        _ command: VectorTerminalGraphicsCommand,
+        canvas: VTGCanvasSize
+    ) -> [String] {
+        switch command.name {
+        case "capabilities?":
+            return [VTGResponseEncoder.capabilities(canvas: canvas)]
+        case "canvas?":
+            return [VTGResponseEncoder.canvasResponse(commandName: "canvas", canvas: canvas)]
+        case "size?":
+            return [VTGResponseEncoder.canvasResponse(commandName: "size", canvas: canvas)]
+        case "resizeEvents":
+            sendsResizeEvents = command.parameters["enabled"] == "1" ||
+                command.parameters["enabled"] == "true"
+            if sendsResizeEvents {
+                lastReportedCanvas = canvas
+                return [VTGResponseEncoder.resize(canvas: canvas)]
+            }
+            lastReportedCanvas = nil
+            return []
+        case "mouseEvents":
+            sendsMouseEvents = command.parameters["enabled"] == "1" ||
+                command.parameters["enabled"] == "true"
+            mouseMode = VTGMouseMode(rawValue: command.parameters["mode"] ?? "raw") ?? .raw
+            return []
+        default:
+            return []
+        }
+    }
+
+    private func acceptsMouseEvent(type: String) -> Bool {
+        switch mouseMode {
+        case .click:
+            return type == "click"
+        case .raw:
+            return type == "down" || type == "up" || type == "click" || type == "scroll"
+        case .drag:
+            return type == "down" || type == "up" || type == "drag" || type == "click" || type == "scroll"
+        case .all:
+            return true
+        }
+    }
+}

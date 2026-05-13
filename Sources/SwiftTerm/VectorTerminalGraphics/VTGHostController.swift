@@ -1,38 +1,5 @@
 import Foundation
 
-/// VTG mouse reporting modes requested by child applications.
-public enum VTGMouseMode: String, Equatable {
-    case click
-    case raw
-    case drag
-    case all
-
-    public var emitsRawMouse: Bool {
-        self == .raw || self == .drag || self == .all
-    }
-
-    public var emitsScroll: Bool {
-        self == .raw || self == .drag || self == .all
-    }
-}
-
-/// Mouse position in VTG pixel coordinates and terminal cell coordinates.
-public struct VTGMouseSnapshot: Equatable {
-    public var x: Int
-    public var y: Int
-    public var cellX: Int
-    public var cellY: Int
-    public var modifiers: String
-
-    public init(x: Int, y: Int, cellX: Int, cellY: Int, modifiers: String) {
-        self.x = x
-        self.y = y
-        self.cellX = cellX
-        self.cellY = cellY
-        self.modifiers = modifiers
-    }
-}
-
 /// Host-side controller for VectorTerminal Graphics protocol state.
 ///
 /// `VTGHostController` owns the framework-level parts of VTG integration:
@@ -100,7 +67,7 @@ public final class VTGHostController {
 
     /// Return a VTG mouse response when the current mouse mode accepts `type`.
     public func mouseResponse(
-        type: String,
+        type: VTGMouseEventType,
         button: Int,
         snapshot: VTGMouseSnapshot,
         scrollX: Int? = nil,
@@ -112,7 +79,7 @@ public final class VTGHostController {
         let hit = scene.hitRegion(at: VTGPoint(x: Double(snapshot.x), y: Double(snapshot.y)))
         return VTGResponseEncoder.mouse(
             VTGMouseEventPayload(
-                type: type,
+                type: type.rawValue,
                 button: button,
                 x: snapshot.x,
                 y: snapshot.y,
@@ -124,6 +91,26 @@ public final class VTGHostController {
                 hitID: hit?.id,
                 targetID: hit?.target
             )
+        )
+    }
+
+    /// Return a VTG mouse response for callers that still pass raw event names.
+    public func mouseResponse(
+        type: String,
+        button: Int,
+        snapshot: VTGMouseSnapshot,
+        scrollX: Int? = nil,
+        scrollY: Int? = nil
+    ) -> String? {
+        guard let type = VTGMouseEventType(rawValue: type) else {
+            return nil
+        }
+        return mouseResponse(
+            type: type,
+            button: button,
+            snapshot: snapshot,
+            scrollX: scrollX,
+            scrollY: scrollY
         )
     }
 
@@ -157,14 +144,14 @@ public final class VTGHostController {
         }
     }
 
-    private func acceptsMouseEvent(type: String) -> Bool {
+    private func acceptsMouseEvent(type: VTGMouseEventType) -> Bool {
         switch mouseMode {
         case .click:
-            return type == "click"
+            return type == .click
         case .raw:
-            return type == "down" || type == "up" || type == "click" || type == "scroll"
+            return type == .down || type == .up || type == .click || type == .scroll
         case .drag:
-            return type == "down" || type == "up" || type == "drag" || type == "click" || type == "scroll"
+            return type == .down || type == .up || type == .drag || type == .click || type == .scroll
         case .all:
             return true
         }

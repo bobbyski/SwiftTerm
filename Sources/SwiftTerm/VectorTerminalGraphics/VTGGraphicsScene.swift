@@ -847,7 +847,7 @@ public final class VTGGraphicsScene {
     private func clearHitRegion(_ command: VectorTerminalGraphicsCommand) {
         if let id = command.parameters["id"] {
             hitRegions.removeValue(forKey: id)
-        } else if let layerValue = command.parameters["layer"].flatMap(Int.init) {
+        } else if let layerValue = command.parameters["layer"].flatMap(Int.init).map(VTGLayerModel.clamped) {
             hitRegions = hitRegions.filter { $0.value.layer != layerValue }
         } else {
             hitRegions.removeAll()

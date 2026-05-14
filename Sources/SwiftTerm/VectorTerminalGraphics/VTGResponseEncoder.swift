@@ -58,7 +58,19 @@ public struct VTGMouseEventPayload: Equatable {
 /// owns the protocol strings; embedders still provide platform facts such as
 /// canvas size, mouse position, and whether a child process is running.
 public enum VTGResponseEncoder {
+    /// Wire protocol name used in capability discovery.
+    public static let protocolName = "VTG"
+
+    /// Version of the VTG command protocol advertised to child processes.
     public static let version = "0.1"
+
+    /// Versioned shape of the `capabilities` response fields.
+    ///
+    /// The response is still a flat APC key/value list so older clients can
+    /// continue to read individual fields. This schema identifier gives newer
+    /// clients a stable way to decide whether fields such as `commands`,
+    /// `planned`, and `events` are present.
+    public static let capabilitiesSchema = "vtg.capabilities.v1"
 
     public static let defaultPrimitives = [
         "pixel",
@@ -78,6 +90,55 @@ public enum VTGResponseEncoder {
     public static let defaultFormats = ["png", "jpeg"]
     public static let defaultSpriteFeatures = ["bitmap", "vector", "move", "rotate", "scale"]
     public static let defaultColors = ["hex-rgb", "hex-rgba"]
+    public static let defaultEvents = ["mouse", "resize"]
+
+    public static let defaultCommands = [
+        "begin",
+        "present",
+        "clear",
+        "delete",
+        "capabilities?",
+        "canvas?",
+        "size?",
+        "resizeEvents",
+        "mouseEvents",
+        "defaultLayer",
+        "layer",
+        "layerScroll",
+        "layerAlpha",
+        "clip",
+        "clipClear",
+        "hit",
+        "hitClear",
+        "pixel",
+        "line",
+        "draw",
+        "curve",
+        "triangle",
+        "path",
+        "rect",
+        "circle",
+        "ellipse",
+        "text",
+        "image",
+        "spriteUpload",
+        "vectorSpriteUpload",
+        "sprite",
+        "spriteMove",
+        "spriteRotate",
+        "spriteAnchor",
+        "spriteTransform",
+        "spriteRemove",
+        "spriteClear"
+    ]
+
+    public static let plannedCommands = [
+        "startFrame",
+        "endFrame",
+        "cancelFrame",
+        "viewportMode",
+        "viewportClear"
+    ]
 
     /// Encode a `VTG;capabilities?` response.
     public static func capabilities(
@@ -86,15 +147,22 @@ public enum VTGResponseEncoder {
         primitives: [String] = defaultPrimitives,
         formats: [String] = defaultFormats,
         spriteFeatures: [String] = defaultSpriteFeatures,
-        colors: [String] = defaultColors
+        colors: [String] = defaultColors,
+        commands: [String] = defaultCommands,
+        planned: [String] = plannedCommands,
+        events: [String] = defaultEvents
     ) -> String {
         apc(
             "capabilities",
             [
+                ("protocol", protocolName),
+                ("schema", capabilitiesSchema),
                 ("version", version),
                 ("renderer", renderer),
                 ("canvasWidth", String(canvas.width)),
                 ("canvasHeight", String(canvas.height)),
+                ("commands", commands.joined(separator: "|")),
+                ("planned", planned.joined(separator: "|")),
                 ("primitives", primitives.joined(separator: "|")),
                 ("formats", formats.joined(separator: "|")),
                 ("sprites", spriteFeatures.joined(separator: "|")),
@@ -104,6 +172,7 @@ public enum VTGResponseEncoder {
                 ("layerAlpha", "1-4"),
                 ("clip", "layer-rect"),
                 ("hit", "rect-layered"),
+                ("events", events.joined(separator: "|")),
                 ("colors", colors.joined(separator: "|"))
             ]
         )

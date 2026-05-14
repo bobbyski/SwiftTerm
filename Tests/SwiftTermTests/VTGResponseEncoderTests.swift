@@ -8,13 +8,18 @@ final class VTGResponseEncoderTests {
         let response = VTGResponseEncoder.capabilities(canvas: VTGCanvasSize(width: 800, height: 600))
 
         #expect(response.hasPrefix("\u{1B}_VTG;capabilities,"))
+        #expect(response.contains("protocol=VTG"))
+        #expect(response.contains("schema=vtg.capabilities.v1"))
         #expect(response.contains("version=0.1"))
         #expect(response.contains("canvasWidth=800"))
         #expect(response.contains("canvasHeight=600"))
+        #expect(response.contains("commands=begin|present|clear|delete|capabilities?|canvas?|size?|resizeEvents|mouseEvents|defaultLayer|layer|layerScroll|layerAlpha|clip|clipClear|hit|hitClear|pixel|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|spriteUpload|vectorSpriteUpload|sprite|spriteMove|spriteRotate|spriteAnchor|spriteTransform|spriteRemove|spriteClear"))
+        #expect(response.contains("planned=startFrame|endFrame|cancelFrame|viewportMode|viewportClear"))
         #expect(response.contains("primitives=pixel|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|sprite"))
         #expect(response.contains("sprites=bitmap|vector|move|rotate|scale"))
         #expect(response.contains("layers=0-4"))
         #expect(response.contains("layerAlpha=1-4"))
+        #expect(response.contains("events=mouse|resize"))
         #expect(response.hasSuffix("\u{1B}\\"))
     }
 

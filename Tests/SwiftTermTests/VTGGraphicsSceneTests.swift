@@ -50,10 +50,25 @@ final class VTGGraphicsSceneTests {
         let scene = VTGGraphicsScene()
 
         scene.apply(command("rect", ["id": "movable", "layer": "1", "x": "0", "y": "0", "w": "10", "h": "10"]))
-        scene.apply(command("layer", ["id": "movable", "value": "4"]))
+        scene.apply(command("layer", ["id": "movable", "layer": "4"]))
 
         #expect(scene.primitives.count == 1)
         #expect(scene.layer(for: scene.primitives[0]) == VTGLayerModel.lastOverlayLayer)
+    }
+
+    @Test func defaultLayerAndObjectLayerAcceptCanonicalLayerParameter() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command("defaultLayer", ["layer": "2"]))
+        scene.apply(command("rect", ["id": "pane", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        #expect(scene.layer(for: scene.primitives[0]) == 2)
+
+        scene.apply(command("layer", ["id": "pane", "layer": "3"]))
+        #expect(scene.layer(for: scene.primitives[0]) == 3)
+
+        scene.apply(command("rect", ["id": "pane", "x": "0", "y": "0", "w": "20", "h": "20"]))
+        #expect(scene.primitives.count == 1)
+        #expect(scene.layer(for: scene.primitives[0]) == 3)
     }
 
     @Test func layerCommandIgnoresUnknownPrimitiveIDs() {
@@ -74,6 +89,25 @@ final class VTGGraphicsSceneTests {
 
         #expect(scene.hitRegion(at: VTGPoint(x: 25, y: 25))?.id == "front")
         #expect(scene.hitRegion(at: VTGPoint(x: 75, y: 75))?.id == "back")
+    }
+
+    @Test func hitClearRemovesByIDLayerOrAll() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command("hit", ["id": "one", "layer": "1", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        scene.apply(command("hit", ["id": "two", "layer": "2", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        scene.apply(command("hit", ["id": "three", "layer": "2", "x": "20", "y": "0", "w": "10", "h": "10"]))
+
+        scene.apply(command("hitClear", ["id": "one"]))
+        #expect(scene.hitRegions.keys.sorted() == ["three", "two"])
+
+        scene.apply(command("hitClear", ["layer": "2"]))
+        #expect(scene.hitRegions.isEmpty)
+
+        scene.apply(command("hit", ["id": "four", "layer": "1", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        scene.apply(command("hit", ["id": "five", "layer": "3", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        scene.apply(command("hitClear"))
+        #expect(scene.hitRegions.isEmpty)
     }
 
     @Test func layerModelClampsDrawingLayersAndReservesTextPlaneFromScrolling() {
@@ -111,6 +145,19 @@ final class VTGGraphicsSceneTests {
         #expect(scene.alpha(for: 3) == 0)
     }
 
+    @Test func layerClipCanBeSetClearedAndIgnoresInvalidSizes() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command("clip", ["layer": "2", "x": "10", "y": "20", "w": "100", "h": "50"]))
+        #expect(scene.clip(for: 2) == VTGLayerClip(x: 10, y: 20, width: 100, height: 50))
+
+        scene.apply(command("clip", ["layer": "3", "x": "0", "y": "0", "w": "0", "h": "50"]))
+        #expect(scene.clip(for: 3) == nil)
+
+        scene.apply(command("clipClear", ["layer": "2"]))
+        #expect(scene.clip(for: 2) == nil)
+    }
+
     @Test func vectorSpriteUploadSharesSpritePlacementAndTransforms() {
         let scene = VTGGraphicsScene()
 
@@ -136,6 +183,80 @@ final class VTGGraphicsSceneTests {
         #expect(scale == 2)
         #expect(anchorX == 1)
         #expect(anchorY == 0)
+    }
+
+    @Test func spriteUploadsRejectInvalidIDsAndRespectAssetLimit() {
+        let scene = VTGGraphicsScene()
+        let payload = Data([1]).base64EncodedString()
+
+        scene.apply(command("spriteUpload", ["id": "bad-id", "format": "png", "width": "1", "height": "1"], payload: payload))
+        scene.apply(command("spriteUpload", ["id": "bad id", "format": "png", "width": "1", "height": "1"], payload: payload))
+        scene.apply(command("spriteUpload", ["id": String(repeating: "a", count: 65), "format": "png", "width": "1", "height": "1"], payload: payload))
+        #expect(scene.spriteAssets.isEmpty)
+
+        for index in 0..<256 {
+            scene.apply(command("spriteUpload", ["id": "s\(index)", "format": "png", "width": "1", "height": "1"], payload: payload))
+        }
+        #expect(scene.spriteAssets.count == 256)
+
+        scene.apply(command("spriteUpload", ["id": "s256", "format": "png", "width": "1", "height": "1"], payload: payload))
+        #expect(scene.spriteAsset(id: "s256") == nil)
+    }
+
+    @Test func duplicateSpriteUploadReplacesAssetAcrossBitmapAndVectorStores() {
+        let scene = VTGGraphicsScene()
+        let bitmapPayload = Data([1]).base64EncodedString()
+        let replacementPayload = Data([2]).base64EncodedString()
+
+        scene.apply(command("spriteUpload", ["id": "ship", "format": "png", "width": "10", "height": "20"], payload: bitmapPayload))
+        #expect(scene.spriteAsset(id: "ship")?.width == 10)
+        #expect(scene.spriteAsset(id: "ship")?.base64 == bitmapPayload)
+
+        scene.apply(command("spriteUpload", ["id": "ship", "format": "jpeg", "width": "30", "height": "40"], payload: replacementPayload))
+        #expect(scene.spriteAssets.count == 1)
+        #expect(scene.spriteAsset(id: "ship")?.format == "jpeg")
+        #expect(scene.spriteAsset(id: "ship")?.width == 30)
+        #expect(scene.spriteAsset(id: "ship")?.base64 == replacementPayload)
+
+        scene.apply(command(
+            "vectorSpriteUpload",
+            ["id": "ship", "width": "50", "height": "60", "stroke": "#5eead4"],
+            payload: "M 0 0 L 50 30 L 0 60 Z"
+        ))
+        #expect(scene.spriteAsset(id: "ship") == nil)
+        #expect(scene.vectorSpriteAsset(id: "ship")?.width == 50)
+
+        scene.apply(command("spriteUpload", ["id": "ship", "format": "png", "width": "70", "height": "80"], payload: bitmapPayload))
+        #expect(scene.vectorSpriteAsset(id: "ship") == nil)
+        #expect(scene.spriteAsset(id: "ship")?.width == 70)
+    }
+
+    @Test func spriteRemoveAndClearRemoveAssetsAndDependentInstancesOnly() {
+        let scene = VTGGraphicsScene()
+        let payload = Data([1]).base64EncodedString()
+
+        scene.apply(command("rect", ["id": "background", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        scene.apply(command("spriteUpload", ["id": "enemy", "format": "png", "width": "8", "height": "8"], payload: payload))
+        scene.apply(command("spriteUpload", ["id": "player", "format": "png", "width": "8", "height": "8"], payload: payload))
+        scene.apply(command("sprite", ["id": "enemy1", "image": "enemy", "x": "10", "y": "10", "layer": "2"]))
+        scene.apply(command("sprite", ["id": "enemy2", "image": "enemy", "x": "20", "y": "10", "layer": "2"]))
+        scene.apply(command("sprite", ["id": "player1", "image": "player", "x": "30", "y": "10", "layer": "3"]))
+
+        scene.apply(command("spriteRemove", ["id": "enemy"]))
+
+        #expect(scene.spriteAsset(id: "enemy") == nil)
+        #expect(scene.spriteAsset(id: "player") != nil)
+        #expect(scene.primitives.map(\.id).sorted() == ["background", "player1"])
+        #expect(scene.layersByID["enemy1"] == nil)
+        #expect(scene.layersByID["enemy2"] == nil)
+        #expect(scene.layersByID["player1"] == 3)
+
+        scene.apply(command("spriteClear"))
+
+        #expect(scene.spriteAssets.isEmpty)
+        #expect(scene.vectorSpriteAssets.isEmpty)
+        #expect(scene.primitives.map(\.id) == ["background"])
+        #expect(scene.layersByID["player1"] == nil)
     }
 
     private func command(

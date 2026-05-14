@@ -149,7 +149,7 @@ public final class VTGOverlayView: NSView {
             }
             image.draw(in: CGRect(x: x, y: y, width: width, height: height))
 
-        case .sprite(_, let assetID, let x, let y, let rotation, let scale):
+        case .sprite(_, let assetID, let x, let y, let rotation, let scale, let anchorX, let anchorY):
             if let asset = scene.spriteAsset(id: assetID),
                let image = NSImage(data: asset.data) {
                 let width = asset.width * scale
@@ -157,9 +157,9 @@ public final class VTGOverlayView: NSView {
                 context.saveGState()
                 // Sprite transforms deliberately apply only to retained sprite
                 // instances. Immediate primitives stay simple and stateless.
-                context.translateBy(x: x + width / 2, y: y + height / 2)
+                context.translateBy(x: x + width * anchorX, y: y + height * anchorY)
                 context.rotate(by: CGFloat(rotation * .pi / 180))
-                image.draw(in: CGRect(x: -width / 2, y: -height / 2, width: width, height: height))
+                image.draw(in: CGRect(x: -width * anchorX, y: -height * anchorY, width: width, height: height))
                 context.restoreGState()
                 return
             }
@@ -169,10 +169,10 @@ public final class VTGOverlayView: NSView {
             let width = asset.width * scale
             let height = asset.height * scale
             context.saveGState()
-            context.translateBy(x: x + width / 2, y: y + height / 2)
+            context.translateBy(x: x + width * anchorX, y: y + height * anchorY)
             context.rotate(by: CGFloat(rotation * .pi / 180))
-            context.translateBy(x: -width / 2, y: -height / 2)
             context.scaleBy(x: scale, y: scale)
+            context.translateBy(x: -asset.width * anchorX, y: -asset.height * anchorY)
             context.beginPath()
             applyPathCommands(asset.commands, in: context)
             if let fill = asset.fill {

@@ -56,7 +56,7 @@ public enum VTGPrimitive: Equatable {
     case ellipse(id: String, cx: Double, cy: Double, rx: Double, ry: Double, stroke: VTGColor?, fill: VTGColor?, lineWidth: Double)
     case text(id: String, x: Double, y: Double, value: String, color: VTGColor, size: Double)
     case image(id: String, x: Double, y: Double, width: Double, height: Double, format: String, data: Data, base64: String)
-    case sprite(id: String, assetID: String, x: Double, y: Double, rotation: Double, scale: Double)
+    case sprite(id: String, assetID: String, x: Double, y: Double, rotation: Double, scale: Double, anchorX: Double, anchorY: Double)
 
     public var id: String {
         switch self {
@@ -71,7 +71,7 @@ public enum VTGPrimitive: Equatable {
              .ellipse(let id, _, _, _, _, _, _, _),
              .text(let id, _, _, _, _, _),
              .image(let id, _, _, _, _, _, _, _),
-             .sprite(let id, _, _, _, _, _):
+             .sprite(let id, _, _, _, _, _, _, _):
             return id
         }
     }
@@ -377,7 +377,9 @@ public final class VTGGraphicsScene {
         case "spriteRotate":
             transformSprite(command, updates: [.rotation])
         case "spriteTransform":
-            transformSprite(command, updates: [.position, .rotation, .scale])
+            transformSprite(command, updates: [.position, .rotation, .scale, .anchor])
+        case "spriteAnchor":
+            transformSprite(command, updates: [.anchor])
         case "spriteRemove":
             if let id = command.parameters["id"] {
                 removeSpriteAsset(id: id)
@@ -700,7 +702,9 @@ public final class VTGGraphicsScene {
             x: command.double("x"),
             y: command.double("y"),
             rotation: command.double("rotation"),
-            scale: max(0.01, command.double("scale", default: 1))
+            scale: max(0.01, command.double("scale", default: 1)),
+            anchorX: command.normalizedDouble("anchorX", default: 0.5),
+            anchorY: command.normalizedDouble("anchorY", default: 0.5)
         )
     }
 
@@ -710,19 +714,22 @@ public final class VTGGraphicsScene {
         static let position = SpriteUpdateOptions(rawValue: 1 << 0)
         static let rotation = SpriteUpdateOptions(rawValue: 1 << 1)
         static let scale = SpriteUpdateOptions(rawValue: 1 << 2)
+        static let anchor = SpriteUpdateOptions(rawValue: 1 << 3)
     }
 
     private func transformSprite(_ command: VectorTerminalGraphicsCommand, updates: SpriteUpdateOptions) {
         guard let id = command.parameters["id"],
               let index = indexesByID[id],
-              case .sprite(let spriteID, let assetID, let currentX, let currentY, let currentRotation, let currentScale) = primitives[index] else {
+              case .sprite(let spriteID, let assetID, let currentX, let currentY, let currentRotation, let currentScale, let currentAnchorX, let currentAnchorY) = primitives[index] else {
             return
         }
         let x = updates.contains(.position) ? command.double("x", default: currentX) : currentX
         let y = updates.contains(.position) ? command.double("y", default: currentY) : currentY
         let rotation = updates.contains(.rotation) ? command.double("rotation", default: currentRotation) : currentRotation
         let scale = updates.contains(.scale) ? max(0.01, command.double("scale", default: currentScale)) : currentScale
-        primitives[index] = .sprite(id: spriteID, assetID: assetID, x: x, y: y, rotation: rotation, scale: scale)
+        let anchorX = updates.contains(.anchor) ? command.normalizedDouble("anchorX", default: currentAnchorX) : currentAnchorX
+        let anchorY = updates.contains(.anchor) ? command.normalizedDouble("anchorY", default: currentAnchorY) : currentAnchorY
+        primitives[index] = .sprite(id: spriteID, assetID: assetID, x: x, y: y, rotation: rotation, scale: scale, anchorX: anchorX, anchorY: anchorY)
     }
 
     private func removeSpriteAsset(id: String) {
@@ -730,7 +737,7 @@ public final class VTGGraphicsScene {
         vectorSpriteAssets.removeValue(forKey: id)
         var removedPrimitiveIDs: [String] = []
         primitives.removeAll { primitive in
-            if case .sprite(_, let assetID, _, _, _, _) = primitive {
+            if case .sprite(_, let assetID, _, _, _, _, _, _) = primitive {
                 let shouldRemove = assetID == id
                 if shouldRemove {
                     removedPrimitiveIDs.append(primitive.id)
@@ -940,6 +947,11 @@ private extension VectorTerminalGraphicsCommand {
             return defaultValue
         }
         return value
+    }
+
+    /// Read a normalized numeric command parameter for sprite anchors.
+    func normalizedDouble(_ key: String, default defaultValue: Double) -> Double {
+        min(1, max(0, double(key, default: defaultValue)))
     }
 
     /// Parse an optional color parameter where `"none"` means transparent.

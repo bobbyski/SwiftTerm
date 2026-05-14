@@ -119,12 +119,13 @@ final class VTGGraphicsSceneTests {
             ["id": "ship", "width": "40", "height": "30", "stroke": "#5eead4", "fill": "#07111d", "lineWidth": "2"],
             payload: "M 20 0 L 40 30 L 20 22 L 0 30 Z"
         ))
-        scene.apply(command("sprite", ["id": "ship1", "image": "ship", "x": "10", "y": "20", "rotation": "5", "scale": "1.5"]))
+        scene.apply(command("sprite", ["id": "ship1", "image": "ship", "x": "10", "y": "20", "rotation": "5", "scale": "1.5", "anchorX": "0.25", "anchorY": "0.75"]))
         scene.apply(command("spriteTransform", ["id": "ship1", "x": "30", "y": "40", "rotation": "15", "scale": "2"]))
+        scene.apply(command("spriteAnchor", ["id": "ship1", "anchorX": "2", "anchorY": "-1"]))
 
         #expect(scene.vectorSpriteAsset(id: "ship")?.width == 40)
         #expect(scene.primitives.count == 1)
-        guard case .sprite(_, let assetID, let x, let y, let rotation, let scale) = scene.primitives[0] else {
+        guard case .sprite(_, let assetID, let x, let y, let rotation, let scale, let anchorX, let anchorY) = scene.primitives[0] else {
             Issue.record("Expected retained vector sprite instance")
             return
         }
@@ -133,6 +134,8 @@ final class VTGGraphicsSceneTests {
         #expect(y == 40)
         #expect(rotation == 15)
         #expect(scale == 2)
+        #expect(anchorX == 1)
+        #expect(anchorY == 0)
     }
 
     private func command(

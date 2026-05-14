@@ -74,22 +74,22 @@ private extension VTGPrimitive {
             let mimeType = format.lowercased() == "jpg" ? "image/jpeg" : "image/\(format.lowercased())"
             return "<image x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\" href=\"data:\(mimeType);base64,\(base64)\"/>"
 
-        case .sprite(_, let assetID, let x, let y, let rotation, let scale):
+        case .sprite(_, let assetID, let x, let y, let rotation, let scale, let anchorX, let anchorY):
             if let asset = scene.spriteAsset(id: assetID) {
                 let width = asset.width * scale
                 let height = asset.height * scale
-                let centerX = x + width / 2
-                let centerY = y + height / 2
+                let anchorScreenX = x + width * anchorX
+                let anchorScreenY = y + height * anchorY
                 let mimeType = asset.format.lowercased() == "jpg" ? "image/jpeg" : "image/\(asset.format.lowercased())"
-                return "<image x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\" href=\"data:\(mimeType);base64,\(asset.base64)\" transform=\"rotate(\(svgNumber(rotation)) \(svgNumber(centerX)) \(svgNumber(centerY)))\"/>"
+                return "<image x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\" href=\"data:\(mimeType);base64,\(asset.base64)\" transform=\"rotate(\(svgNumber(rotation)) \(svgNumber(anchorScreenX)) \(svgNumber(anchorScreenY)))\"/>"
             }
             guard let asset = scene.vectorSpriteAsset(id: assetID) else {
                 return ""
             }
-            let centerX = x + (asset.width * scale) / 2
-            let centerY = y + (asset.height * scale) / 2
-            let transform = "translate(\(svgNumber(x)) \(svgNumber(y))) rotate(\(svgNumber(rotation)) \(svgNumber((asset.width * scale) / 2)) \(svgNumber((asset.height * scale) / 2))) scale(\(svgNumber(scale)))"
-            return "<path d=\"\(asset.commands.svgPathData)\"\(svgFill(asset.fill))\(svgStroke(asset.stroke, width: asset.lineWidth)) transform=\"\(transform)\" data-center-x=\"\(svgNumber(centerX))\" data-center-y=\"\(svgNumber(centerY))\"/>"
+            let anchorScreenX = x + asset.width * scale * anchorX
+            let anchorScreenY = y + asset.height * scale * anchorY
+            let transform = "translate(\(svgNumber(anchorScreenX)) \(svgNumber(anchorScreenY))) rotate(\(svgNumber(rotation))) scale(\(svgNumber(scale))) translate(\(svgNumber(-asset.width * anchorX)) \(svgNumber(-asset.height * anchorY)))"
+            return "<path d=\"\(asset.commands.svgPathData)\"\(svgFill(asset.fill))\(svgStroke(asset.stroke, width: asset.lineWidth)) transform=\"\(transform)\" data-anchor-x=\"\(svgNumber(anchorScreenX))\" data-anchor-y=\"\(svgNumber(anchorScreenY))\"/>"
         }
     }
 

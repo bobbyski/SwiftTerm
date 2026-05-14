@@ -1,5 +1,8 @@
 import Foundation
 import Testing
+#if os(macOS)
+import AppKit
+#endif
 
 @testable import SwiftTerm
 
@@ -114,6 +117,14 @@ final class VTGHostControllerTests {
         )
         #expect(snapshot.modifiers == "ctrl|cmd")
     }
+
+    #if os(macOS)
+    @Test func appKitMouseModifiersConvertToVTGModifiers() {
+        let flags: NSEvent.ModifierFlags = [.shift, .control, .option, .command]
+        #expect(flags.vtgMouseModifiers == [.shift, .control, .alt, .command])
+        #expect(flags.vtgMouseModifiers.wireValue == "shift|ctrl|alt|cmd")
+    }
+    #endif
 
     @Test func ansiMouseModeScannerFindsSequencesInStreamOrder() {
         let bytes = Array("prefix\u{1B}[?1000h middle\u{1B}[?1006h\u{1B}[?1016h later\u{1B}[?1000l\u{1B}[?1016l".utf8)

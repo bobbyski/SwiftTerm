@@ -137,7 +137,7 @@ public enum VTGResponseEncoder {
         "endFrame",
         "cancelFrame",
         "viewportMode",
-        "viewportClear"
+        "viewportScale"
     ]
 
     /// Encode a `VTG;capabilities?` response.

@@ -157,7 +157,7 @@ final class VectorTerminalGraphicsParserTests {
             ParserFixture("endFrame", name: "endFrame"),
             ParserFixture("cancelFrame", name: "cancelFrame"),
             ParserFixture("viewportMode,width=320,height=200,scale=fit,layer=1", name: "viewportMode", parameters: ["width": "320", "height": "200", "scale": "fit", "layer": "1"]),
-            ParserFixture("viewportClear,layer=1", name: "viewportClear", parameters: ["layer": "1"])
+            ParserFixture("viewportScale,layer=1,scale=2,x=10,y=20", name: "viewportScale", parameters: ["layer": "1", "scale": "2", "x": "10", "y": "20"])
         ]
 
         for fixture in fixtures {

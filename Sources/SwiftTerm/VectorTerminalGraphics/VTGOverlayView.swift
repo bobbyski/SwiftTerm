@@ -44,6 +44,7 @@ public final class VTGOverlayView: NSView {
             let layer = scene.layer(for: primitive)
             let offset = scene.offset(for: layer)
             context.saveGState()
+            context.setAlpha(scene.alpha(for: layer))
             if let clip = scene.clip(for: layer) {
                 context.clip(to: CGRect(x: clip.x, y: clip.y, width: clip.width, height: clip.height))
             }
@@ -148,19 +149,46 @@ public final class VTGOverlayView: NSView {
             }
             image.draw(in: CGRect(x: x, y: y, width: width, height: height))
 
-        case .sprite(_, let imageID, let x, let y, let rotation, let scale):
-            guard let asset = scene.spriteAsset(id: imageID),
-                  let image = NSImage(data: asset.data) else {
+        case .sprite(_, let assetID, let x, let y, let rotation, let scale):
+            if let asset = scene.spriteAsset(id: assetID),
+               let image = NSImage(data: asset.data) {
+                let width = asset.width * scale
+                let height = asset.height * scale
+                context.saveGState()
+                // Sprite transforms deliberately apply only to retained sprite
+                // instances. Immediate primitives stay simple and stateless.
+                context.translateBy(x: x + width / 2, y: y + height / 2)
+                context.rotate(by: CGFloat(rotation * .pi / 180))
+                image.draw(in: CGRect(x: -width / 2, y: -height / 2, width: width, height: height))
+                context.restoreGState()
+                return
+            }
+            guard let asset = scene.vectorSpriteAsset(id: assetID) else {
                 return
             }
             let width = asset.width * scale
             let height = asset.height * scale
             context.saveGState()
-            // Sprite transforms deliberately apply only to retained sprite
-            // instances. Immediate primitives stay simple and stateless.
             context.translateBy(x: x + width / 2, y: y + height / 2)
             context.rotate(by: CGFloat(rotation * .pi / 180))
-            image.draw(in: CGRect(x: -width / 2, y: -height / 2, width: width, height: height))
+            context.translateBy(x: -width / 2, y: -height / 2)
+            context.scaleBy(x: scale, y: scale)
+            context.beginPath()
+            applyPathCommands(asset.commands, in: context)
+            if let fill = asset.fill {
+                context.setFillColor(fill.cgColor)
+                if let stroke = asset.stroke {
+                    context.setStrokeColor(stroke.cgColor)
+                    context.setLineWidth(asset.lineWidth)
+                    context.drawPath(using: .fillStroke)
+                } else {
+                    context.fillPath()
+                }
+            } else if let stroke = asset.stroke {
+                context.setStrokeColor(stroke.cgColor)
+                context.setLineWidth(asset.lineWidth)
+                context.strokePath()
+            }
             context.restoreGState()
         }
     }

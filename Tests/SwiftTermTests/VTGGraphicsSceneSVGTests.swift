@@ -35,6 +35,7 @@ final class VTGGraphicsSceneSVGTests {
         let scene = VTGGraphicsScene()
 
         scene.apply(command("layerScroll", ["layer": "2", "x": "10", "y": "20"]))
+        scene.apply(command("layerAlpha", ["layer": "2", "alpha": "0.5"]))
         scene.apply(command("clip", ["layer": "2", "x": "1", "y": "2", "w": "30", "h": "40"]))
         scene.apply(command("rect", [
             "id": "box",
@@ -52,6 +53,7 @@ final class VTGGraphicsSceneSVGTests {
         #expect(svg.contains("<clipPath id=\"vtg-layer-2-clip-0\">"))
         #expect(svg.contains("transform=\"translate(10 20)\""))
         #expect(svg.contains("clip-path=\"url(#vtg-layer-2-clip-0)\""))
+        #expect(svg.contains("opacity=\"0.500\""))
         #expect(svg.contains("fill=\"#3B82F6\""))
     }
 

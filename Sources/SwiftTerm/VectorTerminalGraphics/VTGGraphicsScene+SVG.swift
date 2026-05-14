@@ -11,20 +11,21 @@ public extension VTGGraphicsScene {
         let body = renderPrimitives.enumerated().map { index, primitive in
             let layer = layer(for: primitive)
             let offset = offset(for: layer)
+            let alpha = alpha(for: layer)
             var fragment = primitive.svgFragment(scene: self)
-            guard offset != .zero, fragment.isEmpty == false else {
-                if let clip = clip(for: layer) {
-                    let clipID = "vtg-layer-\(layer)-clip-\(index)"
-                    definitions.append("<clipPath id=\"\(clipID)\"><rect x=\"\(svgNumber(clip.x))\" y=\"\(svgNumber(clip.y))\" width=\"\(svgNumber(clip.width))\" height=\"\(svgNumber(clip.height))\"/></clipPath>")
-                    fragment = "<g clip-path=\"url(#\(clipID))\">\(fragment)</g>"
-                }
+            guard fragment.isEmpty == false else {
                 return fragment
             }
-            fragment = "<g transform=\"translate(\(svgNumber(offset.x)) \(svgNumber(offset.y)))\">\(fragment)</g>"
+            if offset != .zero {
+                fragment = "<g transform=\"translate(\(svgNumber(offset.x)) \(svgNumber(offset.y)))\">\(fragment)</g>"
+            }
             if let clip = clip(for: layer) {
                 let clipID = "vtg-layer-\(layer)-clip-\(index)"
                 definitions.append("<clipPath id=\"\(clipID)\"><rect x=\"\(svgNumber(clip.x))\" y=\"\(svgNumber(clip.y))\" width=\"\(svgNumber(clip.width))\" height=\"\(svgNumber(clip.height))\"/></clipPath>")
                 fragment = "<g clip-path=\"url(#\(clipID))\">\(fragment)</g>"
+            }
+            if alpha < 0.999 {
+                fragment = "<g opacity=\"\(svgNumber(alpha))\">\(fragment)</g>"
             }
             return fragment
         }
@@ -73,16 +74,22 @@ private extension VTGPrimitive {
             let mimeType = format.lowercased() == "jpg" ? "image/jpeg" : "image/\(format.lowercased())"
             return "<image x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\" href=\"data:\(mimeType);base64,\(base64)\"/>"
 
-        case .sprite(_, let imageID, let x, let y, let rotation, let scale):
-            guard let asset = scene.spriteAsset(id: imageID) else {
+        case .sprite(_, let assetID, let x, let y, let rotation, let scale):
+            if let asset = scene.spriteAsset(id: assetID) {
+                let width = asset.width * scale
+                let height = asset.height * scale
+                let centerX = x + width / 2
+                let centerY = y + height / 2
+                let mimeType = asset.format.lowercased() == "jpg" ? "image/jpeg" : "image/\(asset.format.lowercased())"
+                return "<image x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\" href=\"data:\(mimeType);base64,\(asset.base64)\" transform=\"rotate(\(svgNumber(rotation)) \(svgNumber(centerX)) \(svgNumber(centerY)))\"/>"
+            }
+            guard let asset = scene.vectorSpriteAsset(id: assetID) else {
                 return ""
             }
-            let width = asset.width * scale
-            let height = asset.height * scale
-            let centerX = x + width / 2
-            let centerY = y + height / 2
-            let mimeType = asset.format.lowercased() == "jpg" ? "image/jpeg" : "image/\(asset.format.lowercased())"
-            return "<image x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\" href=\"data:\(mimeType);base64,\(asset.base64)\" transform=\"rotate(\(svgNumber(rotation)) \(svgNumber(centerX)) \(svgNumber(centerY)))\"/>"
+            let centerX = x + (asset.width * scale) / 2
+            let centerY = y + (asset.height * scale) / 2
+            let transform = "translate(\(svgNumber(x)) \(svgNumber(y))) rotate(\(svgNumber(rotation)) \(svgNumber((asset.width * scale) / 2)) \(svgNumber((asset.height * scale) / 2))) scale(\(svgNumber(scale)))"
+            return "<path d=\"\(asset.commands.svgPathData)\"\(svgFill(asset.fill))\(svgStroke(asset.stroke, width: asset.lineWidth)) transform=\"\(transform)\" data-center-x=\"\(svgNumber(centerX))\" data-center-y=\"\(svgNumber(centerY))\"/>"
         }
     }
 

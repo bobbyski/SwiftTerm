@@ -12,7 +12,9 @@ final class VTGResponseEncoderTests {
         #expect(response.contains("canvasWidth=800"))
         #expect(response.contains("canvasHeight=600"))
         #expect(response.contains("primitives=pixel|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|sprite"))
+        #expect(response.contains("sprites=bitmap|vector|move|rotate|scale"))
         #expect(response.contains("layers=0-4"))
+        #expect(response.contains("layerAlpha=1-4"))
         #expect(response.hasSuffix("\u{1B}\\"))
     }
 

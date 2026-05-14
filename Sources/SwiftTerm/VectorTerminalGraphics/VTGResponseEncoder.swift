@@ -76,7 +76,7 @@ public enum VTGResponseEncoder {
     ]
 
     public static let defaultFormats = ["png", "jpeg"]
-    public static let defaultSpriteFeatures = ["bitmap", "move", "rotate", "scale"]
+    public static let defaultSpriteFeatures = ["bitmap", "vector", "move", "rotate", "scale"]
     public static let defaultColors = ["hex-rgb", "hex-rgba"]
 
     /// Encode a `VTG;capabilities?` response.
@@ -98,9 +98,10 @@ public enum VTGResponseEncoder {
                 ("primitives", primitives.joined(separator: "|")),
                 ("formats", formats.joined(separator: "|")),
                 ("sprites", spriteFeatures.joined(separator: "|")),
-                ("layers", "0-4"),
-                ("defaultLayer", "1"),
+                ("layers", VTGLayerModel.advertisedRange),
+                ("defaultLayer", String(VTGLayerModel.defaultDrawingLayer)),
                 ("layerScroll", "true"),
+                ("layerAlpha", "1-4"),
                 ("clip", "layer-rect"),
                 ("hit", "rect-layered"),
                 ("colors", colors.joined(separator: "|"))

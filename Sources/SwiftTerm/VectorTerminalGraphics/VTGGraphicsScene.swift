@@ -1,5 +1,45 @@
 import Foundation
 
+/// Defines the VTG compositing layer contract shared by the parser, scene, and
+/// host response encoder.
+///
+/// Layer 0 is reserved for the future text/graphics plane where VTG primitives
+/// can mingle with terminal cells. Layers 1 through 4 are overlay layers that
+/// render above the terminal and may scroll independently for parallax-style
+/// effects.
+public enum VTGLayerModel {
+    /// Shared text/graphics plane reserved for Phase 10 renderer integration.
+    public static let textPlaneLayer = 0
+
+    /// First overlay layer. This is the default for current VTG drawing.
+    public static let firstOverlayLayer = 1
+
+    /// Last supported overlay layer. Keep this intentionally small.
+    public static let lastOverlayLayer = 4
+
+    /// Default layer for commands that omit `layer=`.
+    public static let defaultDrawingLayer = firstOverlayLayer
+
+    /// All supported layer numbers.
+    public static let supportedRange = textPlaneLayer...lastOverlayLayer
+
+    /// Layers that can be independently scrolled in the current overlay model.
+    public static let scrollableRange = firstOverlayLayer...lastOverlayLayer
+
+    /// Human-readable range advertised through `VTG;capabilities?`.
+    public static let advertisedRange = "\(textPlaneLayer)-\(lastOverlayLayer)"
+
+    /// Clamp an arbitrary wire value into the supported VTG layer range.
+    public static func clamped(_ value: Int) -> Int {
+        min(supportedRange.upperBound, max(supportedRange.lowerBound, value))
+    }
+
+    /// Return whether the layer may currently receive an overlay scroll offset.
+    public static func isScrollable(_ layer: Int) -> Bool {
+        scrollableRange.contains(layer)
+    }
+}
+
 /// A retained drawing primitive in the VectorTerminal overlay scene.
 ///
 /// Each primitive has an ID so apps can redraw by replacing existing shapes
@@ -16,7 +56,7 @@ public enum VTGPrimitive: Equatable {
     case ellipse(id: String, cx: Double, cy: Double, rx: Double, ry: Double, stroke: VTGColor?, fill: VTGColor?, lineWidth: Double)
     case text(id: String, x: Double, y: Double, value: String, color: VTGColor, size: Double)
     case image(id: String, x: Double, y: Double, width: Double, height: Double, format: String, data: Data, base64: String)
-    case sprite(id: String, imageID: String, x: Double, y: Double, rotation: Double, scale: Double)
+    case sprite(id: String, assetID: String, x: Double, y: Double, rotation: Double, scale: Double)
 
     public var id: String {
         switch self {
@@ -53,6 +93,33 @@ public struct VTGSpriteAsset: Equatable {
         self.height = height
         self.data = data
         self.base64 = base64
+    }
+}
+
+/// Uploaded vector payload that sprite instances can reference cheaply.
+///
+/// The first pass supports one constrained VTG path per asset. That keeps
+/// transforms limited to tracked sprite resources while giving small games and
+/// demos lightweight vector ships, cursors, and icons.
+public struct VTGVectorSpriteAsset: Equatable {
+    public var id: String
+    public var width: Double
+    public var height: Double
+    public var commands: [VTGPathCommand]
+    public var stroke: VTGColor?
+    public var fill: VTGColor?
+    public var lineWidth: Double
+    public var payload: String
+
+    public init(id: String, width: Double, height: Double, commands: [VTGPathCommand], stroke: VTGColor?, fill: VTGColor?, lineWidth: Double, payload: String) {
+        self.id = id
+        self.width = width
+        self.height = height
+        self.commands = commands
+        self.stroke = stroke
+        self.fill = fill
+        self.lineWidth = lineWidth
+        self.payload = payload
     }
 }
 
@@ -155,14 +222,16 @@ public struct VTGColor: Equatable {
 /// The terminal stream remains ANSI-compatible text. VTG commands update this
 /// side scene, and `VTGOverlayView` renders it on top of the terminal surface.
 public final class VTGGraphicsScene {
-    public static let supportedLayerRange = 0...4
+    public static let supportedLayerRange = VTGLayerModel.supportedRange
 
     public private(set) var primitives: [VTGPrimitive] = []
     public private(set) var spriteAssets: [String: VTGSpriteAsset] = [:]
-    public private(set) var defaultLayer = 1
+    public private(set) var vectorSpriteAssets: [String: VTGVectorSpriteAsset] = [:]
+    public private(set) var defaultLayer = VTGLayerModel.defaultDrawingLayer
     public private(set) var layersByID: [String: Int] = [:]
     public private(set) var layerOffsets: [Int: VTGLayerOffset] = [:]
     public private(set) var layerClips: [Int: VTGLayerClip] = [:]
+    public private(set) var layerAlphas: [Int: Double] = [:]
     public private(set) var hitRegions: [String: VTGHitRegion] = [:]
     private var indexesByID: [String: Int] = [:]
     private var nextHitOrder = 0
@@ -204,6 +273,11 @@ public final class VTGGraphicsScene {
         layerClips[layer]
     }
 
+    /// Return the current opacity multiplier for a layer.
+    public func alpha(for layer: Int) -> Double {
+        layerAlphas[layer] ?? 1
+    }
+
     /// Return the topmost registered hit region at a pixel coordinate.
     public func hitRegion(at point: VTGPoint) -> VTGHitRegion? {
         hitRegions.values
@@ -241,8 +315,12 @@ public final class VTGGraphicsScene {
             break
         case "defaultLayer":
             defaultLayer = command.layerValue(default: defaultLayer)
+        case "layer":
+            setPrimitiveLayer(command)
         case "layerScroll":
             setLayerScroll(command)
+        case "layerAlpha":
+            setLayerAlpha(command)
         case "clip":
             setLayerClip(command)
         case "clipClear":
@@ -253,12 +331,15 @@ public final class VTGGraphicsScene {
             clearHitRegion(command)
         case "clear":
             primitives.removeAll()
+            spriteAssets.removeAll()
+            vectorSpriteAssets.removeAll()
             indexesByID.removeAll()
             layersByID.removeAll()
             layerOffsets.removeAll()
             layerClips.removeAll()
+            layerAlphas.removeAll()
             hitRegions.removeAll()
-            defaultLayer = 1
+            defaultLayer = VTGLayerModel.defaultDrawingLayer
         case "delete":
             if let id = command.parameters["id"] {
                 remove(id: id)
@@ -287,6 +368,8 @@ public final class VTGGraphicsScene {
             upsert(parseImage(command), command: command)
         case "spriteUpload":
             uploadSprite(command)
+        case "vectorSpriteUpload":
+            uploadVectorSprite(command)
         case "sprite":
             upsert(parseSprite(command), command: command)
         case "spriteMove":
@@ -330,9 +413,22 @@ public final class VTGGraphicsScene {
         indexesByID = Dictionary(uniqueKeysWithValues: primitives.enumerated().map { ($0.element.id, $0.offset) })
     }
 
+    private func setPrimitiveLayer(_ command: VectorTerminalGraphicsCommand) {
+        guard let id = command.parameters["id"],
+              indexesByID[id] != nil else {
+            return
+        }
+        layersByID[id] = command.layerValue(default: layersByID[id] ?? defaultLayer)
+    }
+
     /// Return an uploaded sprite asset for renderers/exporters.
     public func spriteAsset(id: String) -> VTGSpriteAsset? {
         spriteAssets[id]
+    }
+
+    /// Return an uploaded vector sprite asset for renderers/exporters.
+    public func vectorSpriteAsset(id: String) -> VTGVectorSpriteAsset? {
+        vectorSpriteAssets[id]
     }
 
     private func parsePixel(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
@@ -539,7 +635,7 @@ public final class VTGGraphicsScene {
     private func uploadSprite(_ command: VectorTerminalGraphicsCommand) {
         guard let id = command.parameters["id"],
               Self.isValidIdentifier(id),
-              spriteAssets[id] != nil || spriteAssets.count < spriteAssetLimit,
+              spriteAssets[id] != nil || vectorSpriteAssets[id] != nil || (spriteAssets.count + vectorSpriteAssets.count) < spriteAssetLimit,
               let payload = command.payload,
               let data = Data(base64Encoded: payload) else {
             return
@@ -553,6 +649,7 @@ public final class VTGGraphicsScene {
         guard width > 0, height > 0 else {
             return
         }
+        vectorSpriteAssets.removeValue(forKey: id)
         spriteAssets[id] = VTGSpriteAsset(
             id: id,
             format: format == "jpg" ? "jpeg" : format,
@@ -563,16 +660,43 @@ public final class VTGGraphicsScene {
         )
     }
 
+    private func uploadVectorSprite(_ command: VectorTerminalGraphicsCommand) {
+        guard let id = command.parameters["id"],
+              Self.isValidIdentifier(id),
+              vectorSpriteAssets[id] != nil || spriteAssets[id] != nil || (spriteAssets.count + vectorSpriteAssets.count) < spriteAssetLimit,
+              let payload = command.payload,
+              let commands = VTGPathParser.parse(payload),
+              commands.isEmpty == false else {
+            return
+        }
+        let width = command.double("width", default: command.double("w"))
+        let height = command.double("height", default: command.double("h"))
+        guard width > 0, height > 0 else {
+            return
+        }
+        spriteAssets.removeValue(forKey: id)
+        vectorSpriteAssets[id] = VTGVectorSpriteAsset(
+            id: id,
+            width: width,
+            height: height,
+            commands: commands,
+            stroke: command.color("stroke"),
+            fill: command.color("fill"),
+            lineWidth: max(1, command.double("lineWidth", default: command.double("width", default: 1))),
+            payload: payload
+        )
+    }
+
     private func parseSprite(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
         guard let id = command.parameters["id"],
               Self.isValidIdentifier(id),
-              let imageID = command.parameters["image"] ?? command.parameters["asset"],
-              spriteAssets[imageID] != nil else {
+              let assetID = command.parameters["image"] ?? command.parameters["asset"],
+              spriteAssets[assetID] != nil || vectorSpriteAssets[assetID] != nil else {
             return nil
         }
         return .sprite(
             id: id,
-            imageID: imageID,
+            assetID: assetID,
             x: command.double("x"),
             y: command.double("y"),
             rotation: command.double("rotation"),
@@ -591,22 +715,23 @@ public final class VTGGraphicsScene {
     private func transformSprite(_ command: VectorTerminalGraphicsCommand, updates: SpriteUpdateOptions) {
         guard let id = command.parameters["id"],
               let index = indexesByID[id],
-              case .sprite(let spriteID, let imageID, let currentX, let currentY, let currentRotation, let currentScale) = primitives[index] else {
+              case .sprite(let spriteID, let assetID, let currentX, let currentY, let currentRotation, let currentScale) = primitives[index] else {
             return
         }
         let x = updates.contains(.position) ? command.double("x", default: currentX) : currentX
         let y = updates.contains(.position) ? command.double("y", default: currentY) : currentY
         let rotation = updates.contains(.rotation) ? command.double("rotation", default: currentRotation) : currentRotation
         let scale = updates.contains(.scale) ? max(0.01, command.double("scale", default: currentScale)) : currentScale
-        primitives[index] = .sprite(id: spriteID, imageID: imageID, x: x, y: y, rotation: rotation, scale: scale)
+        primitives[index] = .sprite(id: spriteID, assetID: assetID, x: x, y: y, rotation: rotation, scale: scale)
     }
 
     private func removeSpriteAsset(id: String) {
         spriteAssets.removeValue(forKey: id)
+        vectorSpriteAssets.removeValue(forKey: id)
         var removedPrimitiveIDs: [String] = []
         primitives.removeAll { primitive in
-            if case .sprite(_, let imageID, _, _, _, _) = primitive {
-                let shouldRemove = imageID == id
+            if case .sprite(_, let assetID, _, _, _, _) = primitive {
+                let shouldRemove = assetID == id
                 if shouldRemove {
                     removedPrimitiveIDs.append(primitive.id)
                 }
@@ -622,6 +747,7 @@ public final class VTGGraphicsScene {
 
     private func removeAllSpriteAssets() {
         spriteAssets.removeAll()
+        vectorSpriteAssets.removeAll()
         var removedPrimitiveIDs: [String] = []
         primitives.removeAll { primitive in
             if case .sprite = primitive {
@@ -638,13 +764,26 @@ public final class VTGGraphicsScene {
 
     private func setLayerScroll(_ command: VectorTerminalGraphicsCommand) {
         let layer = command.layerValue(default: defaultLayer)
-        guard layer > 0 else {
+        guard VTGLayerModel.isScrollable(layer) else {
             return
         }
         layerOffsets[layer] = VTGLayerOffset(
             x: command.double("x", default: offset(for: layer).x),
             y: command.double("y", default: offset(for: layer).y)
         )
+    }
+
+    private func setLayerAlpha(_ command: VectorTerminalGraphicsCommand) {
+        let layer = command.layerValue(default: defaultLayer)
+        guard VTGLayerModel.isScrollable(layer) else {
+            return
+        }
+        let alpha = min(1, max(0, command.double("alpha", default: 1)))
+        if alpha >= 0.999 {
+            layerAlphas.removeValue(forKey: layer)
+        } else {
+            layerAlphas[layer] = alpha
+        }
     }
 
     private func setLayerClip(_ command: VectorTerminalGraphicsCommand) {
@@ -817,7 +956,7 @@ private extension VectorTerminalGraphicsCommand {
         guard let raw, let value = Int(raw) else {
             return defaultValue
         }
-        return min(VTGGraphicsScene.supportedLayerRange.upperBound, max(VTGGraphicsScene.supportedLayerRange.lowerBound, value))
+        return VTGLayerModel.clamped(value)
     }
 }
 

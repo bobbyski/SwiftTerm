@@ -59,6 +59,27 @@ final class VTGHostControllerTests {
         #expect(controller.mouseResponse(type: "bogus", button: 0, snapshot: snapshot) == nil)
     }
 
+    @Test func mouseResponseIncludesVirtualViewportCoordinates() {
+        let controller = VTGHostController()
+        let canvas = VTGCanvasSize(width: 800, height: 600)
+
+        _ = controller.process([
+            command("mouseEvents", ["enabled": "1", "mode": "click"]),
+            command("viewportMode", ["layer": "4", "width": "320", "height": "200", "scale": "fit"]),
+            command("viewportScale", ["layer": "4", "scale": "2", "x": "40", "y": "50"]),
+            command("hit", ["id": "virtual", "target": "virtualButton", "layer": "4", "x": "20", "y": "30", "w": "40", "h": "20"])
+        ], canvas: canvas)
+
+        let snapshot = VTGMouseSnapshot(x: 80, y: 110, cellX: 8, cellY: 6, modifiers: "none")
+        let response = controller.mouseResponse(type: .click, button: 0, snapshot: snapshot, canvas: canvas)
+
+        #expect(response?.contains("viewportLayer=4") == true)
+        #expect(response?.contains("virtualX=20") == true)
+        #expect(response?.contains("virtualY=30") == true)
+        #expect(response?.contains("hit=virtual") == true)
+        #expect(response?.contains("target=virtualButton") == true)
+    }
+
     @Test func offscreenFrameBuffersGraphicsUntilCommit() {
         let controller = VTGHostController()
         let canvas = VTGCanvasSize(width: 640, height: 480)
@@ -105,18 +126,70 @@ final class VTGHostControllerTests {
         let controller = VTGHostController()
         let canvas = VTGCanvasSize(width: 640, height: 480)
 
-        _ = controller.process([
+        let mismatchResponses = controller.process([
             command("startFrame", ["id": "frame1"]),
             command("rect", ["id": "pending", "x": "1", "y": "2", "w": "30", "h": "40"]),
             command("endFrame", ["id": "wrong"])
         ], canvas: canvas)
 
+        #expect(mismatchResponses == [
+            "\u{1B}_VTG;frameStarted,id=frame1,timeout=250\u{1B}\\",
+            "\u{1B}_VTG;frameRejected,id=wrong,reason=idMismatch\u{1B}\\"
+        ])
         #expect(controller.hasPendingFrame)
         #expect(controller.scene.primitives.isEmpty)
 
         _ = controller.process([command("endFrame", ["id": "frame1"])], canvas: canvas)
 
         #expect(!controller.hasPendingFrame)
+        #expect(controller.scene.primitives.map(\.id) == ["pending"])
+    }
+
+    @Test func offscreenFrameCancelRequiresMatchingID() {
+        let controller = VTGHostController()
+        let canvas = VTGCanvasSize(width: 640, height: 480)
+
+        let mismatchResponses = controller.process([
+            command("line", ["id": "visible", "x1": "0", "y1": "0", "x2": "10", "y2": "10"]),
+            command("startFrame", ["id": "frame1"]),
+            command("clear"),
+            command("cancelFrame", ["id": "wrong"])
+        ], canvas: canvas)
+
+        #expect(mismatchResponses == [
+            "\u{1B}_VTG;frameStarted,id=frame1,timeout=250\u{1B}\\",
+            "\u{1B}_VTG;frameRejected,id=wrong,reason=idMismatch\u{1B}\\"
+        ])
+        #expect(controller.hasPendingFrame)
+        #expect(controller.scene.primitives.map(\.id) == ["visible"])
+
+        let cancelResponses = controller.process([command("cancelFrame", ["id": "frame1"])], canvas: canvas)
+
+        #expect(cancelResponses == ["\u{1B}_VTG;frameCanceled,id=frame1,reason=app\u{1B}\\"])
+        #expect(!controller.hasPendingFrame)
+        #expect(controller.scene.primitives.map(\.id) == ["visible"])
+    }
+
+    @Test func offscreenFrameStartRejectsNestedFrame() {
+        let controller = VTGHostController()
+        let canvas = VTGCanvasSize(width: 640, height: 480)
+
+        let responses = controller.process([
+            command("startFrame", ["id": "frame1"]),
+            command("rect", ["id": "pending", "x": "1", "y": "2", "w": "30", "h": "40"]),
+            command("startFrame", ["id": "frame2"])
+        ], canvas: canvas)
+
+        #expect(responses == [
+            "\u{1B}_VTG;frameStarted,id=frame1,timeout=250\u{1B}\\",
+            "\u{1B}_VTG;frameRejected,id=frame2,reason=nested\u{1B}\\"
+        ])
+        #expect(controller.hasPendingFrame)
+        #expect(controller.pendingFrameID == "frame1")
+
+        let commitResponses = controller.process([command("endFrame", ["id": "frame1"])], canvas: canvas)
+
+        #expect(commitResponses == ["\u{1B}_VTG;frameCommitted,id=frame1\u{1B}\\"])
         #expect(controller.scene.primitives.map(\.id) == ["pending"])
     }
 
@@ -140,6 +213,33 @@ final class VTGHostControllerTests {
         #expect(timeoutResponses == ["\u{1B}_VTG;frameTimeout,id=frame1,reason=timeout\u{1B}\\"])
         #expect(!controller.hasPendingFrame)
         #expect(controller.scene.primitives.map(\.id) == ["visible"])
+    }
+
+    @Test func mouseHitTestingUsesVisibleSceneWhileFrameIsPending() {
+        let controller = VTGHostController()
+        let canvas = VTGCanvasSize(width: 640, height: 480)
+        let snapshot = VTGMouseSnapshot(x: 20, y: 20, cellX: 2, cellY: 2, modifiers: "none")
+
+        _ = controller.process([
+            command("mouseEvents", ["enabled": "1", "mode": "click"]),
+            command("hit", ["id": "visible", "target": "visibleButton", "x": "0", "y": "0", "w": "80", "h": "80"]),
+            command("startFrame", ["id": "frame1"]),
+            command("hitClear"),
+            command("hit", ["id": "pending", "target": "pendingButton", "x": "0", "y": "0", "w": "80", "h": "80"])
+        ], canvas: canvas)
+
+        let pendingClick = controller.mouseResponse(type: .click, button: 0, snapshot: snapshot)
+
+        #expect(pendingClick?.contains("hit=visible") == true)
+        #expect(pendingClick?.contains("target=visibleButton") == true)
+        #expect(pendingClick?.contains("pending") == false)
+
+        _ = controller.process([command("endFrame", ["id": "frame1"])], canvas: canvas)
+
+        let committedClick = controller.mouseResponse(type: .click, button: 0, snapshot: snapshot)
+
+        #expect(committedClick?.contains("hit=pending") == true)
+        #expect(committedClick?.contains("target=pendingButton") == true)
     }
 
     @Test func discardPendingFrameLeavesVisibleSceneUnchanged() {

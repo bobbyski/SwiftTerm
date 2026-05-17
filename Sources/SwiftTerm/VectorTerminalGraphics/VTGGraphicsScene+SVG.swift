@@ -7,6 +7,16 @@ public extension VTGGraphicsScene {
     /// append it to SwiftTerm's terminal snapshot export or embed it in another
     /// SVG document.
     func makeSVGFragment() -> String {
+        makeSVGFragment(canvasWidth: nil, canvasHeight: nil)
+    }
+
+    /// Export retained VTG primitives as an SVG fragment for a known canvas.
+    ///
+    /// Passing the canvas size lets the debug SVG export mirror live rendering
+    /// for fixed-resolution viewport layers. The no-argument overload preserves
+    /// the historical export behavior for callers that only need raw primitive
+    /// coordinates.
+    func makeSVGFragment(canvasWidth: Double?, canvasHeight: Double?) -> String {
         var definitions: [String] = []
         let body = renderPrimitives.enumerated().map { index, primitive in
             let layer = layer(for: primitive)
@@ -18,6 +28,14 @@ public extension VTGGraphicsScene {
             }
             if offset != .zero {
                 fragment = "<g transform=\"translate(\(svgNumber(offset.x)) \(svgNumber(offset.y)))\">\(fragment)</g>"
+            }
+            if let canvasWidth,
+               let canvasHeight,
+               let viewport = viewportTransform(for: layer, canvasWidth: canvasWidth, canvasHeight: canvasHeight) {
+                let clipID = "vtg-layer-\(layer)-viewport-\(index)"
+                definitions.append("<clipPath id=\"\(clipID)\"><rect x=\"\(svgNumber(viewport.x))\" y=\"\(svgNumber(viewport.y))\" width=\"\(svgNumber(viewport.width))\" height=\"\(svgNumber(viewport.height))\"/></clipPath>")
+                let transform = "translate(\(svgNumber(viewport.x)) \(svgNumber(viewport.y))) scale(\(svgNumber(viewport.scaleX)) \(svgNumber(viewport.scaleY)))"
+                fragment = "<g clip-path=\"url(#\(clipID))\"><g transform=\"\(transform)\">\(fragment)</g></g>"
             }
             if let clip = clip(for: layer) {
                 let clipID = "vtg-layer-\(layer)-clip-\(index)"

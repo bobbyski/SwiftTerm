@@ -24,6 +24,9 @@ public struct VTGMouseEventPayload: Equatable {
     public var scrollY: Int?
     public var hitID: String?
     public var targetID: String?
+    public var viewportLayer: Int?
+    public var virtualX: Int?
+    public var virtualY: Int?
 
     public init(
         type: String,
@@ -36,7 +39,10 @@ public struct VTGMouseEventPayload: Equatable {
         scrollX: Int? = nil,
         scrollY: Int? = nil,
         hitID: String? = nil,
-        targetID: String? = nil
+        targetID: String? = nil,
+        viewportLayer: Int? = nil,
+        virtualX: Int? = nil,
+        virtualY: Int? = nil
     ) {
         self.type = type
         self.button = button
@@ -49,6 +55,9 @@ public struct VTGMouseEventPayload: Equatable {
         self.scrollY = scrollY
         self.hitID = hitID
         self.targetID = targetID
+        self.viewportLayer = viewportLayer
+        self.virtualX = virtualX
+        self.virtualY = virtualY
     }
 }
 
@@ -106,6 +115,8 @@ public enum VTGResponseEncoder {
         "layer",
         "layerScroll",
         "layerAlpha",
+        "viewportMode",
+        "viewportScale",
         "clip",
         "clipClear",
         "hit",
@@ -135,10 +146,7 @@ public enum VTGResponseEncoder {
         "spriteClear"
     ]
 
-    public static let plannedCommands = [
-        "viewportMode",
-        "viewportScale"
-    ]
+    public static let plannedCommands: [String] = []
 
     /// Encode a `VTG;capabilities?` response.
     public static func capabilities(
@@ -203,6 +211,13 @@ public enum VTGResponseEncoder {
         }
         if let scrollY = event.scrollY {
             fields.append(("scrollY", String(scrollY)))
+        }
+        if let viewportLayer = event.viewportLayer,
+           let virtualX = event.virtualX,
+           let virtualY = event.virtualY {
+            fields.append(("viewportLayer", String(viewportLayer)))
+            fields.append(("virtualX", String(virtualX)))
+            fields.append(("virtualY", String(virtualY)))
         }
         fields.append(("mods", event.modifiers))
         if let hitID = event.hitID {

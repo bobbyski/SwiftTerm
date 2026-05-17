@@ -105,6 +105,7 @@ public final class VTGHostController {
         type: VTGMouseEventType,
         button: Int,
         snapshot: VTGMouseSnapshot,
+        canvas: VTGCanvasSize? = nil,
         scrollX: Int? = nil,
         scrollY: Int? = nil
     ) -> String? {
@@ -112,7 +113,13 @@ public final class VTGHostController {
         guard sendsMouseEvents, acceptsMouseEvent(type: type) else {
             return nil
         }
-        let hit = scene.hitRegion(at: VTGPoint(x: Double(snapshot.x), y: Double(snapshot.y)))
+        let point = VTGPoint(x: Double(snapshot.x), y: Double(snapshot.y))
+        let viewportPosition = canvas.flatMap {
+            scene.viewportMousePosition(at: point, canvasWidth: Double($0.width), canvasHeight: Double($0.height))
+        }
+        let hit = canvas.flatMap {
+            scene.hitRegion(at: point, canvasWidth: Double($0.width), canvasHeight: Double($0.height))
+        } ?? scene.hitRegion(at: point)
         return VTGResponseEncoder.mouse(
             VTGMouseEventPayload(
                 type: type.rawValue,
@@ -125,7 +132,10 @@ public final class VTGHostController {
                 scrollX: scrollX,
                 scrollY: scrollY,
                 hitID: hit?.id,
-                targetID: hit?.target
+                targetID: hit?.target,
+                viewportLayer: viewportPosition?.layer,
+                virtualX: viewportPosition.map { Int($0.x.rounded(.down)) },
+                virtualY: viewportPosition.map { Int($0.y.rounded(.down)) }
             )
         )
     }
@@ -135,6 +145,7 @@ public final class VTGHostController {
         type: String,
         button: Int,
         snapshot: VTGMouseSnapshot,
+        canvas: VTGCanvasSize? = nil,
         scrollX: Int? = nil,
         scrollY: Int? = nil
     ) -> String? {
@@ -145,6 +156,7 @@ public final class VTGHostController {
             type: type,
             button: button,
             snapshot: snapshot,
+            canvas: canvas,
             scrollX: scrollX,
             scrollY: scrollY
         )
@@ -200,6 +212,9 @@ public final class VTGHostController {
     private func startFrame(_ command: VectorTerminalGraphicsCommand) -> String {
         let frameID = frameID(from: command)
         let timeoutMilliseconds = timeoutMilliseconds(from: command)
+        guard pendingFrame == nil else {
+            return VTGResponseEncoder.frameEvent("frameRejected", id: frameID, reason: "nested")
+        }
         pendingFrame = PendingFrame(
             id: frameID,
             deadline: now().addingTimeInterval(TimeInterval(timeoutMilliseconds) / 1_000),
@@ -209,9 +224,11 @@ public final class VTGHostController {
     }
 
     private func endFrame(_ command: VectorTerminalGraphicsCommand) -> String? {
-        guard let pendingFrame,
-              frameIDMatches(command, pendingFrame: pendingFrame) else {
+        guard let pendingFrame else {
             return nil
+        }
+        guard frameIDMatches(command, pendingFrame: pendingFrame) else {
+            return VTGResponseEncoder.frameEvent("frameRejected", id: frameID(from: command), reason: "idMismatch")
         }
         scene.replaceContents(with: pendingFrame.scene)
         self.pendingFrame = nil
@@ -219,9 +236,11 @@ public final class VTGHostController {
     }
 
     private func cancelFrame(_ command: VectorTerminalGraphicsCommand) -> String? {
-        guard let pendingFrame,
-              frameIDMatches(command, pendingFrame: pendingFrame) else {
+        guard let pendingFrame else {
             return nil
+        }
+        guard frameIDMatches(command, pendingFrame: pendingFrame) else {
+            return VTGResponseEncoder.frameEvent("frameRejected", id: frameID(from: command), reason: "idMismatch")
         }
         self.pendingFrame = nil
         return VTGResponseEncoder.frameEvent("frameCanceled", id: pendingFrame.id, reason: "app")

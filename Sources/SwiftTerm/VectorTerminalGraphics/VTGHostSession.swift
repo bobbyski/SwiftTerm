@@ -88,6 +88,7 @@ public final class VTGHostSession {
                   type: type,
                   button: button,
                   snapshot: snapshot,
+                  canvas: canvasProvider(),
                   scrollX: scrollX,
                   scrollY: scrollY
               ) else {

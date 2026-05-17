@@ -48,6 +48,15 @@ public final class VTGOverlayView: NSView {
             if let clip = scene.clip(for: layer) {
                 context.clip(to: CGRect(x: clip.x, y: clip.y, width: clip.width, height: clip.height))
             }
+            if let viewport = scene.viewportTransform(
+                for: layer,
+                canvasWidth: bounds.width,
+                canvasHeight: bounds.height
+            ) {
+                context.clip(to: CGRect(x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height))
+                context.translateBy(x: viewport.x, y: viewport.y)
+                context.scaleBy(x: viewport.scaleX, y: viewport.scaleY)
+            }
             context.translateBy(x: offset.x, y: offset.y)
             draw(primitive, in: context, scene: scene)
             context.restoreGState()

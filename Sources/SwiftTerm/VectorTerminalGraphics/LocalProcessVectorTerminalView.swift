@@ -192,8 +192,12 @@ open class LocalProcessVectorTerminalView: VectorTerminalView, TerminalViewDeleg
         let previousMode = rendererMode
         do {
             try setRendererMode(.svg)
-            let svg = makeSVGSnapshot { [vtgSession] context in
-                context.appendRawSVG(vtgSession.controller.scene.makeSVGFragment())
+            let svg = makeSVGSnapshot { [vtgSession, weak self] context in
+                let canvas = self?.currentVTGCanvas() ?? VTGCanvasSize(width: 0, height: 0)
+                context.appendRawSVG(vtgSession.controller.scene.makeSVGFragment(
+                    canvasWidth: Double(canvas.width),
+                    canvasHeight: Double(canvas.height)
+                ))
             }
             let fileURL = try writeSVGSnapshot(svg)
             print("VectorTerminal SVG snapshot: \(fileURL.path)")

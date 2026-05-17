@@ -162,6 +162,79 @@ public struct VTGLayerClip: Equatable {
     }
 }
 
+/// Fixed-resolution compatibility mode for an overlay graphics layer.
+///
+/// This is intentionally restricted to overlay layers. Layer 0 contains normal
+/// terminal text and scrollback, so scaling it as a virtual pixel surface would
+/// make selection, cursor movement, and ANSI layout surprising.
+public struct VTGViewportMode: Equatable {
+    public enum ScaleMode: String {
+        case fit
+        case fill
+        case integer
+        case stretch
+    }
+
+    public var layer: Int
+    public var width: Double
+    public var height: Double
+    public var scaleMode: ScaleMode
+
+    public init(layer: Int, width: Double, height: Double, scaleMode: ScaleMode) {
+        self.layer = layer
+        self.width = width
+        self.height = height
+        self.scaleMode = scaleMode
+    }
+}
+
+/// Explicit placement override for a fixed-resolution overlay layer.
+public struct VTGViewportScale: Equatable {
+    public var layer: Int
+    public var scale: Double
+    public var x: Double
+    public var y: Double
+
+    public init(layer: Int, scale: Double, x: Double, y: Double) {
+        self.layer = layer
+        self.scale = scale
+        self.x = x
+        self.y = y
+    }
+}
+
+/// Concrete renderer transform for drawing one layer's virtual coordinates.
+public struct VTGViewportTransform: Equatable {
+    public var x: Double
+    public var y: Double
+    public var scaleX: Double
+    public var scaleY: Double
+    public var width: Double
+    public var height: Double
+
+    public init(x: Double, y: Double, scaleX: Double, scaleY: Double, width: Double, height: Double) {
+        self.x = x
+        self.y = y
+        self.scaleX = scaleX
+        self.scaleY = scaleY
+        self.width = width
+        self.height = height
+    }
+}
+
+/// Mouse point mapped from live canvas pixels into a fixed viewport layer.
+public struct VTGViewportMousePosition: Equatable {
+    public var layer: Int
+    public var x: Double
+    public var y: Double
+
+    public init(layer: Int, x: Double, y: Double) {
+        self.layer = layer
+        self.x = x
+        self.y = y
+    }
+}
+
 /// Rectangular interactive region registered by a child app.
 public struct VTGHitRegion: Equatable {
     public var id: String
@@ -232,6 +305,8 @@ public final class VTGGraphicsScene {
     public private(set) var layerOffsets: [Int: VTGLayerOffset] = [:]
     public private(set) var layerClips: [Int: VTGLayerClip] = [:]
     public private(set) var layerAlphas: [Int: Double] = [:]
+    public private(set) var viewportModes: [Int: VTGViewportMode] = [:]
+    public private(set) var viewportScales: [Int: VTGViewportScale] = [:]
     public private(set) var hitRegions: [String: VTGHitRegion] = [:]
     private var indexesByID: [String: Int] = [:]
     private var nextHitOrder = 0
@@ -283,6 +358,8 @@ public final class VTGGraphicsScene {
         layerOffsets = scene.layerOffsets
         layerClips = scene.layerClips
         layerAlphas = scene.layerAlphas
+        viewportModes = scene.viewportModes
+        viewportScales = scene.viewportScales
         hitRegions = scene.hitRegions
         nextHitOrder = scene.nextHitOrder
         rebuildIndexes()
@@ -306,6 +383,90 @@ public final class VTGGraphicsScene {
     /// Return the current opacity multiplier for a layer.
     public func alpha(for layer: Int) -> Double {
         layerAlphas[layer] ?? 1
+    }
+
+    /// Return the fixed-resolution viewport mode for a layer, if one is active.
+    public func viewportMode(for layer: Int) -> VTGViewportMode? {
+        viewportModes[layer]
+    }
+
+    /// Return the explicit fixed-viewport placement override, if one is active.
+    public func viewportScale(for layer: Int) -> VTGViewportScale? {
+        viewportScales[layer]
+    }
+
+    /// Resolve fixed-resolution viewport state into concrete renderer math.
+    ///
+    /// The transform maps a layer's virtual coordinates into the live graphics
+    /// canvas. Renderers apply this before layer scroll offsets so scroll
+    /// remains expressed in the same virtual coordinate system as drawing.
+    public func viewportTransform(for layer: Int, canvasWidth: Double, canvasHeight: Double) -> VTGViewportTransform? {
+        guard let mode = viewportModes[layer], canvasWidth > 0, canvasHeight > 0 else {
+            return nil
+        }
+        if let override = viewportScales[layer] {
+            return VTGViewportTransform(
+                x: override.x,
+                y: override.y,
+                scaleX: override.scale,
+                scaleY: override.scale,
+                width: mode.width * override.scale,
+                height: mode.height * override.scale
+            )
+        }
+
+        let scaleX = canvasWidth / mode.width
+        let scaleY = canvasHeight / mode.height
+        let resolvedScaleX: Double
+        let resolvedScaleY: Double
+        switch mode.scaleMode {
+        case .fit:
+            let scale = min(scaleX, scaleY)
+            resolvedScaleX = scale
+            resolvedScaleY = scale
+        case .fill:
+            let scale = max(scaleX, scaleY)
+            resolvedScaleX = scale
+            resolvedScaleY = scale
+        case .integer:
+            let fitScale = min(scaleX, scaleY)
+            let scale = fitScale >= 1 ? floor(fitScale) : fitScale
+            resolvedScaleX = scale
+            resolvedScaleY = scale
+        case .stretch:
+            resolvedScaleX = scaleX
+            resolvedScaleY = scaleY
+        }
+
+        let width = mode.width * resolvedScaleX
+        let height = mode.height * resolvedScaleY
+        return VTGViewportTransform(
+            x: (canvasWidth - width) / 2,
+            y: (canvasHeight - height) / 2,
+            scaleX: resolvedScaleX,
+            scaleY: resolvedScaleY,
+            width: width,
+            height: height
+        )
+    }
+
+    /// Map a physical canvas pixel to the topmost fixed-viewport layer.
+    public func viewportMousePosition(at point: VTGPoint, canvasWidth: Double, canvasHeight: Double) -> VTGViewportMousePosition? {
+        VTGLayerModel.scrollableRange.reversed().compactMap { layer -> VTGViewportMousePosition? in
+            guard let transform = viewportTransform(for: layer, canvasWidth: canvasWidth, canvasHeight: canvasHeight),
+                  point.x >= transform.x,
+                  point.x <= transform.x + transform.width,
+                  point.y >= transform.y,
+                  point.y <= transform.y + transform.height else {
+                return nil
+            }
+            let offset = offset(for: layer)
+            return VTGViewportMousePosition(
+                layer: layer,
+                x: ((point.x - transform.x) / transform.scaleX) - offset.x,
+                y: ((point.y - transform.y) / transform.scaleY) - offset.y
+            )
+        }.first
     }
 
     /// Return the topmost registered hit region at a pixel coordinate.
@@ -338,6 +499,51 @@ public final class VTGGraphicsScene {
             .first
     }
 
+    /// Return the topmost hit region while accounting for fixed-viewport layers.
+    public func hitRegion(at point: VTGPoint, canvasWidth: Double, canvasHeight: Double) -> VTGHitRegion? {
+        hitRegions.values
+            .filter { region in
+                let hitPoint: VTGPoint
+                if let viewport = viewportTransform(for: region.layer, canvasWidth: canvasWidth, canvasHeight: canvasHeight) {
+                    guard point.x >= viewport.x,
+                          point.x <= viewport.x + viewport.width,
+                          point.y >= viewport.y,
+                          point.y <= viewport.y + viewport.height else {
+                        return false
+                    }
+                    let offset = offset(for: region.layer)
+                    hitPoint = VTGPoint(
+                        x: ((point.x - viewport.x) / viewport.scaleX) - offset.x,
+                        y: ((point.y - viewport.y) / viewport.scaleY) - offset.y
+                    )
+                } else {
+                    let offset = offset(for: region.layer)
+                    hitPoint = VTGPoint(x: point.x - offset.x, y: point.y - offset.y)
+                }
+
+                guard hitPoint.x >= region.x,
+                      hitPoint.x <= region.x + region.width,
+                      hitPoint.y >= region.y,
+                      hitPoint.y <= region.y + region.height else {
+                    return false
+                }
+                if let clip = clip(for: region.layer) {
+                    return point.x >= clip.x &&
+                        point.x <= clip.x + clip.width &&
+                        point.y >= clip.y &&
+                        point.y <= clip.y + clip.height
+                }
+                return true
+            }
+            .sorted { lhs, rhs in
+                if lhs.layer == rhs.layer {
+                    return lhs.order > rhs.order
+                }
+                return lhs.layer > rhs.layer
+            }
+            .first
+    }
+
     /// Apply one parsed VTG command to the retained primitive list.
     public func apply(_ command: VectorTerminalGraphicsCommand) {
         switch command.name {
@@ -351,6 +557,10 @@ public final class VTGGraphicsScene {
             setLayerScroll(command)
         case "layerAlpha":
             setLayerAlpha(command)
+        case "viewportMode":
+            setViewportMode(command)
+        case "viewportScale":
+            setViewportScale(command)
         case "clip":
             setLayerClip(command)
         case "clipClear":
@@ -368,6 +578,8 @@ public final class VTGGraphicsScene {
             layerOffsets.removeAll()
             layerClips.removeAll()
             layerAlphas.removeAll()
+            viewportModes.removeAll()
+            viewportScales.removeAll()
             hitRegions.removeAll()
             defaultLayer = VTGLayerModel.defaultDrawingLayer
         case "delete":
@@ -821,6 +1033,53 @@ public final class VTGGraphicsScene {
         } else {
             layerAlphas[layer] = alpha
         }
+    }
+
+    private func setViewportMode(_ command: VectorTerminalGraphicsCommand) {
+        let layer = command.layerValue(default: defaultLayer)
+        guard VTGLayerModel.isScrollable(layer) else {
+            return
+        }
+
+        let rawMode = command.parameters["value"] ?? command.parameters["mode"]
+        if rawMode == "native" || rawMode == "off" || rawMode == "none" {
+            viewportModes.removeValue(forKey: layer)
+            viewportScales.removeValue(forKey: layer)
+            return
+        }
+
+        let width = command.double("width", default: command.double("w"))
+        let height = command.double("height", default: command.double("h"))
+        guard width > 0, height > 0 else {
+            return
+        }
+        let rawScale = command.parameters["scale"] ?? "fit"
+        guard let scaleMode = VTGViewportMode.ScaleMode(rawValue: rawScale) else {
+            return
+        }
+        viewportModes[layer] = VTGViewportMode(
+            layer: layer,
+            width: width,
+            height: height,
+            scaleMode: scaleMode
+        )
+    }
+
+    private func setViewportScale(_ command: VectorTerminalGraphicsCommand) {
+        let layer = command.layerValue(default: defaultLayer)
+        guard VTGLayerModel.isScrollable(layer), viewportModes[layer] != nil else {
+            return
+        }
+        let scale = command.double("scale", default: 1)
+        guard scale > 0 else {
+            return
+        }
+        viewportScales[layer] = VTGViewportScale(
+            layer: layer,
+            scale: scale,
+            x: command.double("x", default: viewportScales[layer]?.x ?? 0),
+            y: command.double("y", default: viewportScales[layer]?.y ?? 0)
+        )
     }
 
     private func setLayerClip(_ command: VectorTerminalGraphicsCommand) {

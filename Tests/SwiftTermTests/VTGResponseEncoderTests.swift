@@ -15,8 +15,8 @@ final class VTGResponseEncoderTests {
         #expect(response.contains("version=0.1"))
         #expect(response.contains("canvasWidth=800"))
         #expect(response.contains("canvasHeight=600"))
-        #expect(response.contains("commands=begin|present|clear|delete|capabilities?|canvas?|size?|resizeEvents|mouseEvents|defaultLayer|layer|layerScroll|layerAlpha|clip|clipClear|hit|hitClear|pixel|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|startFrame|endFrame|cancelFrame|spriteUpload|vectorSpriteUpload|sprite|spriteMove|spriteRotate|spriteAnchor|spriteTransform|spriteRemove|spriteClear"))
-        #expect(response.contains("planned=viewportMode|viewportScale"))
+        #expect(response.contains("commands=begin|present|clear|delete|capabilities?|canvas?|size?|resizeEvents|mouseEvents|defaultLayer|layer|layerScroll|layerAlpha|viewportMode|viewportScale|clip|clipClear|hit|hitClear|pixel|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|startFrame|endFrame|cancelFrame|spriteUpload|vectorSpriteUpload|sprite|spriteMove|spriteRotate|spriteAnchor|spriteTransform|spriteRemove|spriteClear"))
+        #expect(response.contains("planned="))
         #expect(response.contains("primitives=pixel|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|sprite"))
         #expect(response.contains("sprites=bitmap|vector|move|rotate|scale"))
         #expect(response.contains("layers=0-4"))
@@ -45,10 +45,13 @@ final class VTGResponseEncoderTests {
             scrollX: 0,
             scrollY: -4,
             hitID: "quit",
-            targetID: "button"
+            targetID: "button",
+            viewportLayer: 4,
+            virtualX: 120,
+            virtualY: 80
         )
 
-        #expect(VTGResponseEncoder.mouse(event) == "\u{1B}_VTG;mouse,type=scroll,button=5,x=10,y=20,cellX=2,cellY=3,scrollX=0,scrollY=-4,mods=shift|cmd,hit=quit,target=button\u{1B}\\")
+        #expect(VTGResponseEncoder.mouse(event) == "\u{1B}_VTG;mouse,type=scroll,button=5,x=10,y=20,cellX=2,cellY=3,scrollX=0,scrollY=-4,viewportLayer=4,virtualX=120,virtualY=80,mods=shift|cmd,hit=quit,target=button\u{1B}\\")
     }
 
     @Test func encodesFrameLifecycleResponses() {
@@ -56,6 +59,7 @@ final class VTGResponseEncoderTests {
         #expect(VTGResponseEncoder.frameEvent("frameCommitted", id: "f1") == "\u{1B}_VTG;frameCommitted,id=f1\u{1B}\\")
         #expect(VTGResponseEncoder.frameEvent("frameCanceled", id: "f1", reason: "app") == "\u{1B}_VTG;frameCanceled,id=f1,reason=app\u{1B}\\")
         #expect(VTGResponseEncoder.frameEvent("frameTimeout", id: "f1", reason: "timeout") == "\u{1B}_VTG;frameTimeout,id=f1,reason=timeout\u{1B}\\")
+        #expect(VTGResponseEncoder.frameEvent("frameRejected", id: "f2", reason: "nested") == "\u{1B}_VTG;frameRejected,id=f2,reason=nested\u{1B}\\")
     }
 
     @Test func advertisedCommandsHaveParserFixtures() {

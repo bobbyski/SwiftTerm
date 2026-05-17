@@ -63,19 +63,21 @@ final class VTGHostControllerTests {
         let controller = VTGHostController()
         let canvas = VTGCanvasSize(width: 640, height: 480)
 
-        _ = controller.process([
+        let responses = controller.process([
             command("line", ["id": "visible", "x1": "0", "y1": "0", "x2": "10", "y2": "10"]),
             command("startFrame", ["id": "frame1", "timeout": "500"]),
             command("clear"),
             command("rect", ["id": "pending", "x": "1", "y": "2", "w": "30", "h": "40"]),
         ], canvas: canvas)
 
+        #expect(responses == ["\u{1B}_VTG;frameStarted,id=frame1,timeout=500\u{1B}\\"])
         #expect(controller.hasPendingFrame)
         #expect(controller.pendingFrameID == "frame1")
         #expect(controller.scene.primitives.map(\.id) == ["visible"])
 
-        _ = controller.process([command("endFrame", ["id": "frame1"])], canvas: canvas)
+        let commitResponses = controller.process([command("endFrame", ["id": "frame1"])], canvas: canvas)
 
+        #expect(commitResponses == ["\u{1B}_VTG;frameCommitted,id=frame1\u{1B}\\"])
         #expect(!controller.hasPendingFrame)
         #expect(controller.scene.primitives.map(\.id) == ["pending"])
     }
@@ -84,13 +86,17 @@ final class VTGHostControllerTests {
         let controller = VTGHostController()
         let canvas = VTGCanvasSize(width: 640, height: 480)
 
-        _ = controller.process([
+        let responses = controller.process([
             command("line", ["id": "visible", "x1": "0", "y1": "0", "x2": "10", "y2": "10"]),
             command("startFrame", ["id": "frame1"]),
             command("rect", ["id": "pending", "x": "1", "y": "2", "w": "30", "h": "40"]),
             command("cancelFrame", ["id": "frame1"])
         ], canvas: canvas)
 
+        #expect(responses == [
+            "\u{1B}_VTG;frameStarted,id=frame1,timeout=250\u{1B}\\",
+            "\u{1B}_VTG;frameCanceled,id=frame1,reason=app\u{1B}\\"
+        ])
         #expect(!controller.hasPendingFrame)
         #expect(controller.scene.primitives.map(\.id) == ["visible"])
     }
@@ -127,10 +133,11 @@ final class VTGHostControllerTests {
         #expect(controller.hasPendingFrame)
 
         currentDate = Date(timeIntervalSince1970: 1)
-        _ = controller.process([
+        let timeoutResponses = controller.process([
             command("line", ["id": "visible", "x1": "0", "y1": "0", "x2": "10", "y2": "10"])
         ], canvas: canvas)
 
+        #expect(timeoutResponses == ["\u{1B}_VTG;frameTimeout,id=frame1,reason=timeout\u{1B}\\"])
         #expect(!controller.hasPendingFrame)
         #expect(controller.scene.primitives.map(\.id) == ["visible"])
     }

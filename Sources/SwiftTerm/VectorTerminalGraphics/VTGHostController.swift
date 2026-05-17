@@ -55,9 +55,15 @@ public final class VTGHostController {
     ) -> [String] {
         var responses: [String] = []
         for command in commands {
-            expirePendingFrameIfNeeded()
+            if let timeoutResponse = expirePendingFrameIfNeeded() {
+                responses.append(timeoutResponse)
+            }
             responses.append(contentsOf: responsesForCommand(command, canvas: canvas))
-            guard handleFrameCommand(command) == false else {
+            let frameResult = handleFrameCommand(command)
+            if let frameResponse = frameResult.response {
+                responses.append(frameResponse)
+            }
+            if frameResult.handled {
                 continue
             }
             activeScene.apply(command)
@@ -80,7 +86,7 @@ public final class VTGHostController {
         force: Bool = false,
         processRunning: Bool = true
     ) -> String? {
-        expirePendingFrameIfNeeded()
+        _ = expirePendingFrameIfNeeded()
         guard sendsResizeEvents, processRunning else {
             return nil
         }
@@ -102,7 +108,7 @@ public final class VTGHostController {
         scrollX: Int? = nil,
         scrollY: Int? = nil
     ) -> String? {
-        expirePendingFrameIfNeeded()
+        _ = expirePendingFrameIfNeeded()
         guard sendsMouseEvents, acceptsMouseEvent(type: type) else {
             return nil
         }
@@ -178,54 +184,56 @@ public final class VTGHostController {
         pendingFrame?.scene ?? scene
     }
 
-    private func handleFrameCommand(_ command: VectorTerminalGraphicsCommand) -> Bool {
+    private func handleFrameCommand(_ command: VectorTerminalGraphicsCommand) -> FrameCommandResult {
         switch command.name {
         case "startFrame":
-            startFrame(command)
-            return true
+            return FrameCommandResult(handled: true, response: startFrame(command))
         case "endFrame":
-            endFrame(command)
-            return true
+            return FrameCommandResult(handled: true, response: endFrame(command))
         case "cancelFrame":
-            cancelFrame(command)
-            return true
+            return FrameCommandResult(handled: true, response: cancelFrame(command))
         default:
-            return false
+            return FrameCommandResult(handled: false, response: nil)
         }
     }
 
-    private func startFrame(_ command: VectorTerminalGraphicsCommand) {
+    private func startFrame(_ command: VectorTerminalGraphicsCommand) -> String {
         let frameID = frameID(from: command)
+        let timeoutMilliseconds = timeoutMilliseconds(from: command)
         pendingFrame = PendingFrame(
             id: frameID,
-            deadline: now().addingTimeInterval(timeoutInterval(from: command)),
+            deadline: now().addingTimeInterval(TimeInterval(timeoutMilliseconds) / 1_000),
             scene: scene.makeSnapshot()
         )
+        return VTGResponseEncoder.frameEvent("frameStarted", id: frameID, timeoutMilliseconds: timeoutMilliseconds)
     }
 
-    private func endFrame(_ command: VectorTerminalGraphicsCommand) {
+    private func endFrame(_ command: VectorTerminalGraphicsCommand) -> String? {
         guard let pendingFrame,
               frameIDMatches(command, pendingFrame: pendingFrame) else {
-            return
+            return nil
         }
         scene.replaceContents(with: pendingFrame.scene)
         self.pendingFrame = nil
+        return VTGResponseEncoder.frameEvent("frameCommitted", id: pendingFrame.id)
     }
 
-    private func cancelFrame(_ command: VectorTerminalGraphicsCommand) {
+    private func cancelFrame(_ command: VectorTerminalGraphicsCommand) -> String? {
         guard let pendingFrame,
               frameIDMatches(command, pendingFrame: pendingFrame) else {
-            return
+            return nil
         }
         self.pendingFrame = nil
+        return VTGResponseEncoder.frameEvent("frameCanceled", id: pendingFrame.id, reason: "app")
     }
 
-    private func expirePendingFrameIfNeeded() {
+    private func expirePendingFrameIfNeeded() -> String? {
         guard let pendingFrame,
               now() >= pendingFrame.deadline else {
-            return
+            return nil
         }
         self.pendingFrame = nil
+        return VTGResponseEncoder.frameEvent("frameTimeout", id: pendingFrame.id, reason: "timeout")
     }
 
     private func frameID(from command: VectorTerminalGraphicsCommand) -> String {
@@ -240,10 +248,9 @@ public final class VTGHostController {
         return requestedID == pendingFrame.id
     }
 
-    private func timeoutInterval(from command: VectorTerminalGraphicsCommand) -> TimeInterval {
+    private func timeoutMilliseconds(from command: VectorTerminalGraphicsCommand) -> Int {
         let rawMilliseconds = command.parameters["timeout"].flatMap(Double.init) ?? 250
-        let clampedMilliseconds = min(10_000, max(1, rawMilliseconds))
-        return clampedMilliseconds / 1_000
+        return Int(min(10_000, max(1, rawMilliseconds)))
     }
 
     private func acceptsMouseEvent(type: VTGMouseEventType) -> Bool {
@@ -263,5 +270,10 @@ public final class VTGHostController {
         var id: String
         var deadline: Date
         var scene: VTGGraphicsScene
+    }
+
+    private struct FrameCommandResult {
+        var handled: Bool
+        var response: String?
     }
 }

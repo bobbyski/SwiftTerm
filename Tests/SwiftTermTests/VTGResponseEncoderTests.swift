@@ -21,7 +21,7 @@ final class VTGResponseEncoderTests {
         #expect(response.contains("sprites=bitmap|vector|move|rotate|scale"))
         #expect(response.contains("layers=0-4"))
         #expect(response.contains("layerAlpha=1-4"))
-        #expect(response.contains("events=mouse|resize"))
+        #expect(response.contains("events=mouse|resize|frame"))
         #expect(response.hasSuffix("\u{1B}\\"))
     }
 
@@ -49,6 +49,13 @@ final class VTGResponseEncoderTests {
         )
 
         #expect(VTGResponseEncoder.mouse(event) == "\u{1B}_VTG;mouse,type=scroll,button=5,x=10,y=20,cellX=2,cellY=3,scrollX=0,scrollY=-4,mods=shift|cmd,hit=quit,target=button\u{1B}\\")
+    }
+
+    @Test func encodesFrameLifecycleResponses() {
+        #expect(VTGResponseEncoder.frameEvent("frameStarted", id: "f1", timeoutMilliseconds: 500) == "\u{1B}_VTG;frameStarted,id=f1,timeout=500\u{1B}\\")
+        #expect(VTGResponseEncoder.frameEvent("frameCommitted", id: "f1") == "\u{1B}_VTG;frameCommitted,id=f1\u{1B}\\")
+        #expect(VTGResponseEncoder.frameEvent("frameCanceled", id: "f1", reason: "app") == "\u{1B}_VTG;frameCanceled,id=f1,reason=app\u{1B}\\")
+        #expect(VTGResponseEncoder.frameEvent("frameTimeout", id: "f1", reason: "timeout") == "\u{1B}_VTG;frameTimeout,id=f1,reason=timeout\u{1B}\\")
     }
 
     @Test func advertisedCommandsHaveParserFixtures() {

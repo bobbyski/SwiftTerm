@@ -90,7 +90,7 @@ public enum VTGResponseEncoder {
     public static let defaultFormats = ["png", "jpeg"]
     public static let defaultSpriteFeatures = ["bitmap", "vector", "move", "rotate", "scale"]
     public static let defaultColors = ["hex-rgb", "hex-rgba"]
-    public static let defaultEvents = ["mouse", "resize"]
+    public static let defaultEvents = ["mouse", "resize", "frame"]
 
     public static let defaultCommands = [
         "begin",
@@ -212,6 +212,23 @@ public enum VTGResponseEncoder {
             fields.append(("target", targetID))
         }
         return apc("mouse", fields)
+    }
+
+    /// Encode a graphics-frame lifecycle response.
+    public static func frameEvent(
+        _ commandName: String,
+        id: String,
+        reason: String? = nil,
+        timeoutMilliseconds: Int? = nil
+    ) -> String {
+        var fields = [("id", id)]
+        if let reason {
+            fields.append(("reason", reason))
+        }
+        if let timeoutMilliseconds {
+            fields.append(("timeout", String(timeoutMilliseconds)))
+        }
+        return apc(commandName, fields)
     }
 
     private static func apc(_ commandName: String, _ fields: [(String, String)]) -> String {

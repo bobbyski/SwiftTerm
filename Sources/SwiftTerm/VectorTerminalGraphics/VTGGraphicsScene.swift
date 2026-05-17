@@ -258,6 +258,36 @@ public final class VTGGraphicsScene {
             .map(\.element)
     }
 
+    /// Return a copy of the current retained scene state.
+    ///
+    /// Offscreen frame support uses this as a graphics-only snapshot. The
+    /// pending scene can then receive VTG mutations without exposing those
+    /// changes to the visible renderer until the host commits the frame.
+    public func makeSnapshot() -> VTGGraphicsScene {
+        let snapshot = VTGGraphicsScene()
+        snapshot.replaceContents(with: self)
+        return snapshot
+    }
+
+    /// Replace this scene with another retained scene state.
+    ///
+    /// This copies public render state and internal bookkeeping. The primitive
+    /// index is rebuilt from the copied primitive array so future updates still
+    /// replace existing IDs instead of appending duplicates.
+    public func replaceContents(with scene: VTGGraphicsScene) {
+        primitives = scene.primitives
+        spriteAssets = scene.spriteAssets
+        vectorSpriteAssets = scene.vectorSpriteAssets
+        defaultLayer = scene.defaultLayer
+        layersByID = scene.layersByID
+        layerOffsets = scene.layerOffsets
+        layerClips = scene.layerClips
+        layerAlphas = scene.layerAlphas
+        hitRegions = scene.hitRegions
+        nextHitOrder = scene.nextHitOrder
+        rebuildIndexes()
+    }
+
     /// Return the retained layer for a primitive.
     public func layer(for primitive: VTGPrimitive) -> Int {
         layersByID[primitive.id] ?? defaultLayer

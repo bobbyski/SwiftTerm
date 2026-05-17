@@ -77,4 +77,33 @@ final class VTGHostSessionTests {
         #expect(session.sendMouseEvent(type: .click, button: 0, snapshot: snapshot))
         #expect(responses.last?.contains("_VTG;mouse,type=click") == true)
     }
+
+    @Test func discardPendingFramePublishesVisibleScene() {
+        var publishedPrimitiveIDs: [[String]] = []
+        let session = VTGHostSession(
+            canvasProvider: { VTGCanvasSize(width: 100, height: 100) },
+            processRunning: { true },
+            sendResponse: { _ in },
+            sceneDidChange: { scene in
+                publishedPrimitiveIDs.append(scene.primitives.map(\.id))
+            }
+        )
+
+        _ = session.controller.process([
+            VectorTerminalGraphicsCommand(
+                name: "line",
+                parameters: ["id": "visible", "x1": "0", "y1": "0", "x2": "10", "y2": "10"]
+            ),
+            VectorTerminalGraphicsCommand(name: "startFrame", parameters: ["id": "frame1"]),
+            VectorTerminalGraphicsCommand(
+                name: "rect",
+                parameters: ["id": "pending", "x": "1", "y": "2", "w": "30", "h": "40"]
+            )
+        ], canvas: VTGCanvasSize(width: 100, height: 100))
+
+        session.discardPendingFrame()
+
+        #expect(publishedPrimitiveIDs.last == ["visible"])
+        #expect(!session.controller.hasPendingFrame)
+    }
 }

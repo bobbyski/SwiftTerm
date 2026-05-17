@@ -59,6 +59,99 @@ final class VTGHostControllerTests {
         #expect(controller.mouseResponse(type: "bogus", button: 0, snapshot: snapshot) == nil)
     }
 
+    @Test func offscreenFrameBuffersGraphicsUntilCommit() {
+        let controller = VTGHostController()
+        let canvas = VTGCanvasSize(width: 640, height: 480)
+
+        _ = controller.process([
+            command("line", ["id": "visible", "x1": "0", "y1": "0", "x2": "10", "y2": "10"]),
+            command("startFrame", ["id": "frame1", "timeout": "500"]),
+            command("clear"),
+            command("rect", ["id": "pending", "x": "1", "y": "2", "w": "30", "h": "40"]),
+        ], canvas: canvas)
+
+        #expect(controller.hasPendingFrame)
+        #expect(controller.pendingFrameID == "frame1")
+        #expect(controller.scene.primitives.map(\.id) == ["visible"])
+
+        _ = controller.process([command("endFrame", ["id": "frame1"])], canvas: canvas)
+
+        #expect(!controller.hasPendingFrame)
+        #expect(controller.scene.primitives.map(\.id) == ["pending"])
+    }
+
+    @Test func offscreenFrameCancelDiscardsPendingGraphics() {
+        let controller = VTGHostController()
+        let canvas = VTGCanvasSize(width: 640, height: 480)
+
+        _ = controller.process([
+            command("line", ["id": "visible", "x1": "0", "y1": "0", "x2": "10", "y2": "10"]),
+            command("startFrame", ["id": "frame1"]),
+            command("rect", ["id": "pending", "x": "1", "y": "2", "w": "30", "h": "40"]),
+            command("cancelFrame", ["id": "frame1"])
+        ], canvas: canvas)
+
+        #expect(!controller.hasPendingFrame)
+        #expect(controller.scene.primitives.map(\.id) == ["visible"])
+    }
+
+    @Test func offscreenFrameEndRequiresMatchingID() {
+        let controller = VTGHostController()
+        let canvas = VTGCanvasSize(width: 640, height: 480)
+
+        _ = controller.process([
+            command("startFrame", ["id": "frame1"]),
+            command("rect", ["id": "pending", "x": "1", "y": "2", "w": "30", "h": "40"]),
+            command("endFrame", ["id": "wrong"])
+        ], canvas: canvas)
+
+        #expect(controller.hasPendingFrame)
+        #expect(controller.scene.primitives.isEmpty)
+
+        _ = controller.process([command("endFrame", ["id": "frame1"])], canvas: canvas)
+
+        #expect(!controller.hasPendingFrame)
+        #expect(controller.scene.primitives.map(\.id) == ["pending"])
+    }
+
+    @Test func offscreenFrameTimeoutRestoresLiveSceneBeforeNextCommand() {
+        var currentDate = Date(timeIntervalSince1970: 0)
+        let controller = VTGHostController(now: { currentDate })
+        let canvas = VTGCanvasSize(width: 640, height: 480)
+
+        _ = controller.process([
+            command("startFrame", ["id": "frame1", "timeout": "10"]),
+            command("rect", ["id": "pending", "x": "1", "y": "2", "w": "30", "h": "40"]),
+        ], canvas: canvas)
+
+        #expect(controller.hasPendingFrame)
+
+        currentDate = Date(timeIntervalSince1970: 1)
+        _ = controller.process([
+            command("line", ["id": "visible", "x1": "0", "y1": "0", "x2": "10", "y2": "10"])
+        ], canvas: canvas)
+
+        #expect(!controller.hasPendingFrame)
+        #expect(controller.scene.primitives.map(\.id) == ["visible"])
+    }
+
+    @Test func discardPendingFrameLeavesVisibleSceneUnchanged() {
+        let controller = VTGHostController()
+        let canvas = VTGCanvasSize(width: 640, height: 480)
+
+        _ = controller.process([
+            command("line", ["id": "visible", "x1": "0", "y1": "0", "x2": "10", "y2": "10"]),
+            command("startFrame", ["id": "frame1"]),
+            command("clear"),
+            command("rect", ["id": "pending", "x": "1", "y": "2", "w": "30", "h": "40"])
+        ], canvas: canvas)
+
+        controller.discardPendingFrame()
+
+        #expect(!controller.hasPendingFrame)
+        #expect(controller.scene.primitives.map(\.id) == ["visible"])
+    }
+
     @Test func clickSynthesizerRequiresSameButtonAndSmallMovement() {
         let synthesizer = VTGMouseClickSynthesizer(
             maximumClickInterval: 0.5,

@@ -110,6 +110,82 @@ The key pattern is:
 - Implement ``TerminalViewDelegate/requestOpenLink(source:link:params:)`` to
   control how link taps/clicks are handled.
 
+## macOS: Vector Graphics Terminal Views
+
+The VectorTerminal fork adds opt-in AppKit views for applications that want the
+normal SwiftTerm terminal plus VTG vector graphics extensions. The original
+``TerminalView`` and ``LocalProcessTerminalView`` remain unchanged.
+
+Use ``VectorTerminalView`` when your app owns the data source and wants to feed
+terminal bytes directly:
+
+```swift
+import SwiftTerm
+import AppKit
+
+final class HostFedController: NSViewController, TerminalViewDelegate {
+    private var terminalView: VectorTerminalView!
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        terminalView = VectorTerminalView(frame: view.bounds)
+        terminalView.terminalDelegate = self
+        terminalView.autoresizingMask = [.width, .height]
+        view.addSubview(terminalView)
+    }
+
+    func send(source: TerminalView, data: ArraySlice<UInt8>) {
+        // Forward keyboard input to your host model, interpreter, or socket.
+    }
+
+    func feedHostOutput(_ bytes: ArraySlice<UInt8>) {
+        terminalView.feed(byteArray: bytes)
+    }
+
+    func feedHostVTG(_ bytes: ArraySlice<UInt8>) {
+        terminalView.feedVTG(bytes)
+    }
+
+    func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {}
+    func setTerminalTitle(source: TerminalView, title: String) {}
+    func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
+    func scrolled(source: TerminalView, position: Double) {}
+    func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
+    func clipboardCopy(source: TerminalView, content: Data) {}
+    func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
+}
+```
+
+Use ``LocalProcessVectorTerminalView`` when you want the same convenience as
+``LocalProcessTerminalView`` with VTG response routing and graphics overlay
+support:
+
+```swift
+import SwiftTerm
+import AppKit
+
+final class VectorShellController: NSViewController, LocalProcessVectorTerminalViewDelegate {
+    private var terminalView: LocalProcessVectorTerminalView!
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        terminalView = LocalProcessVectorTerminalView(frame: view.bounds)
+        terminalView.processDelegate = self
+        terminalView.autoresizingMask = [.width, .height]
+        view.addSubview(terminalView)
+
+        terminalView.startProcess()
+    }
+
+    func sizeChanged(source: LocalProcessVectorTerminalView, newCols: Int, newRows: Int) {}
+    func setTerminalTitle(source: LocalProcessVectorTerminalView, title: String) {}
+    func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
+    func processTerminated(source: TerminalView, exitCode: Int32?) {}
+}
+```
+
 ## iOS: Embedding a Terminal
 
 On iOS, ``TerminalView`` is a `UIScrollView` subclass. The setup is the same as the

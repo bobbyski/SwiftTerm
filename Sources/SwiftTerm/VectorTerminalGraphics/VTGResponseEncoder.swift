@@ -121,6 +121,9 @@ public enum VTGResponseEncoder {
         "ellipse",
         "text",
         "image",
+        "startFrame",
+        "endFrame",
+        "cancelFrame",
         "spriteUpload",
         "vectorSpriteUpload",
         "sprite",
@@ -133,9 +136,6 @@ public enum VTGResponseEncoder {
     ]
 
     public static let plannedCommands = [
-        "startFrame",
-        "endFrame",
-        "cancelFrame",
         "viewportMode",
         "viewportScale"
     ]

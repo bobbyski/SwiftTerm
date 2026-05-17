@@ -11,13 +11,28 @@ public final class VTGHostController {
     public let scene = VTGGraphicsScene()
 
     private let parser = VectorTerminalGraphicsParser()
+    private let now: () -> Date
     private var lastReportedCanvas: VTGCanvasSize?
+    private var pendingFrame: PendingFrame?
 
     public private(set) var sendsResizeEvents = false
     public private(set) var sendsMouseEvents = false
     public private(set) var mouseMode: VTGMouseMode = .click
 
-    public init() {}
+    /// Whether a graphics-only offscreen frame is currently buffering VTG
+    /// scene mutations.
+    public var hasPendingFrame: Bool {
+        pendingFrame != nil
+    }
+
+    /// Identifier of the current pending offscreen frame, if one exists.
+    public var pendingFrameID: String? {
+        pendingFrame?.id
+    }
+
+    public init(now: @escaping () -> Date = Date.init) {
+        self.now = now
+    }
 
     /// Parse and apply a SwiftTerm private sequence.
     ///
@@ -40,10 +55,23 @@ public final class VTGHostController {
     ) -> [String] {
         var responses: [String] = []
         for command in commands {
+            expirePendingFrameIfNeeded()
             responses.append(contentsOf: responsesForCommand(command, canvas: canvas))
-            scene.apply(command)
+            guard handleFrameCommand(command) == false else {
+                continue
+            }
+            activeScene.apply(command)
         }
         return responses
+    }
+
+    /// Discard an active pending graphics frame.
+    ///
+    /// Embedding views should call this when a child process exits, a local
+    /// session resets, or the host needs to recover before the frame timeout
+    /// fires. The visible retained scene is left unchanged.
+    public func discardPendingFrame() {
+        pendingFrame = nil
     }
 
     /// Return a resize event response when the subscribed client should be told.
@@ -52,6 +80,7 @@ public final class VTGHostController {
         force: Bool = false,
         processRunning: Bool = true
     ) -> String? {
+        expirePendingFrameIfNeeded()
         guard sendsResizeEvents, processRunning else {
             return nil
         }
@@ -73,6 +102,7 @@ public final class VTGHostController {
         scrollX: Int? = nil,
         scrollY: Int? = nil
     ) -> String? {
+        expirePendingFrameIfNeeded()
         guard sendsMouseEvents, acceptsMouseEvent(type: type) else {
             return nil
         }
@@ -144,6 +174,78 @@ public final class VTGHostController {
         }
     }
 
+    private var activeScene: VTGGraphicsScene {
+        pendingFrame?.scene ?? scene
+    }
+
+    private func handleFrameCommand(_ command: VectorTerminalGraphicsCommand) -> Bool {
+        switch command.name {
+        case "startFrame":
+            startFrame(command)
+            return true
+        case "endFrame":
+            endFrame(command)
+            return true
+        case "cancelFrame":
+            cancelFrame(command)
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func startFrame(_ command: VectorTerminalGraphicsCommand) {
+        let frameID = frameID(from: command)
+        pendingFrame = PendingFrame(
+            id: frameID,
+            deadline: now().addingTimeInterval(timeoutInterval(from: command)),
+            scene: scene.makeSnapshot()
+        )
+    }
+
+    private func endFrame(_ command: VectorTerminalGraphicsCommand) {
+        guard let pendingFrame,
+              frameIDMatches(command, pendingFrame: pendingFrame) else {
+            return
+        }
+        scene.replaceContents(with: pendingFrame.scene)
+        self.pendingFrame = nil
+    }
+
+    private func cancelFrame(_ command: VectorTerminalGraphicsCommand) {
+        guard let pendingFrame,
+              frameIDMatches(command, pendingFrame: pendingFrame) else {
+            return
+        }
+        self.pendingFrame = nil
+    }
+
+    private func expirePendingFrameIfNeeded() {
+        guard let pendingFrame,
+              now() >= pendingFrame.deadline else {
+            return
+        }
+        self.pendingFrame = nil
+    }
+
+    private func frameID(from command: VectorTerminalGraphicsCommand) -> String {
+        let value = command.parameters["id"] ?? "default"
+        return value.isEmpty ? "default" : value
+    }
+
+    private func frameIDMatches(_ command: VectorTerminalGraphicsCommand, pendingFrame: PendingFrame) -> Bool {
+        guard let requestedID = command.parameters["id"], requestedID.isEmpty == false else {
+            return true
+        }
+        return requestedID == pendingFrame.id
+    }
+
+    private func timeoutInterval(from command: VectorTerminalGraphicsCommand) -> TimeInterval {
+        let rawMilliseconds = command.parameters["timeout"].flatMap(Double.init) ?? 250
+        let clampedMilliseconds = min(10_000, max(1, rawMilliseconds))
+        return clampedMilliseconds / 1_000
+    }
+
     private func acceptsMouseEvent(type: VTGMouseEventType) -> Bool {
         switch mouseMode {
         case .click:
@@ -155,5 +257,11 @@ public final class VTGHostController {
         case .all:
             return true
         }
+    }
+
+    private struct PendingFrame {
+        var id: String
+        var deadline: Date
+        var scene: VTGGraphicsScene
     }
 }

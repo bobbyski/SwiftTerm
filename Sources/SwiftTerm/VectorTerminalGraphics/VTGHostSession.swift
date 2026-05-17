@@ -64,6 +64,16 @@ public final class VTGHostSession {
         sendResponse(response)
     }
 
+    /// Discard any pending graphics-only frame.
+    ///
+    /// This gives embedders an explicit recovery hook for process teardown and
+    /// host-side resets. It intentionally does not clear the visible VTG scene;
+    /// it only drops work that had not yet been committed with `endFrame`.
+    public func discardPendingFrame() {
+        controller.discardPendingFrame()
+        sceneDidChange(controller.scene)
+    }
+
     /// Send a VTG mouse event if the current mouse mode accepts it.
     @discardableResult
     public func sendMouseEvent(

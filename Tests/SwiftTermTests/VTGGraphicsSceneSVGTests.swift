@@ -23,11 +23,21 @@ final class VTGGraphicsSceneSVGTests {
             "color": "#ffffff",
             "size": "12"
         ], payload: "A&B <tag>"))
+        scene.apply(command("rect", [
+            "id": "rounded",
+            "x": "20",
+            "y": "30",
+            "w": "40",
+            "h": "50",
+            "radius": "9",
+            "stroke": "#5eead4"
+        ]))
 
         let svg = scene.makeSVGFragment()
 
         #expect(svg.contains("<line x1=\"1\" y1=\"2\" x2=\"3\" y2=\"4\""))
         #expect(svg.contains("stroke=\"#22C55E\""))
+        #expect(svg.contains("<rect x=\"20\" y=\"30\" width=\"40\" height=\"50\" rx=\"9\" ry=\"9\""))
         #expect(svg.contains("A&amp;B &lt;tag&gt;"))
     }
 

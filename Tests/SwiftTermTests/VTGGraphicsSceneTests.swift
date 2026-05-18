@@ -46,6 +46,25 @@ final class VTGGraphicsSceneTests {
         #expect(scene.renderPrimitives.map(\.id) == ["back", "middle", "front"])
     }
 
+    @Test func rectParsesOptionalCornerRadius() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command("rect", [
+            "id": "rounded",
+            "x": "10",
+            "y": "20",
+            "w": "30",
+            "h": "40",
+            "radius": "8"
+        ]))
+
+        guard case .rect(_, _, _, _, _, let radius, _, _, _) = scene.primitives.first else {
+            Issue.record("Expected retained rect primitive")
+            return
+        }
+        #expect(radius == 8)
+    }
+
     @Test func layerCommandMovesExistingPrimitiveWithoutRedraw() {
         let scene = VTGGraphicsScene()
 

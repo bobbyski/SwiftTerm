@@ -125,16 +125,28 @@ public final class VTGOverlayView: NSView {
             applyPathCommands(commands, in: context)
             drawCurrentPath(stroke: stroke, fill: fill, lineWidth: lineWidth, in: context)
 
-        case .rect(_, let x, let y, let width, let height, let stroke, let fill, let lineWidth):
+        case .rect(_, let x, let y, let width, let height, let radius, let stroke, let fill, let lineWidth):
             let rect = CGRect(x: x, y: y, width: width, height: height)
+            let clampedRadius = max(0, min(radius, min(width, height) / 2))
+            let path = clampedRadius > 0 ? CGPath(roundedRect: rect, cornerWidth: clampedRadius, cornerHeight: clampedRadius, transform: nil) : nil
             if let fill {
                 context.setFillColor(fill.cgColor)
-                context.fill(rect)
+                if let path {
+                    context.addPath(path)
+                    context.fillPath()
+                } else {
+                    context.fill(rect)
+                }
             }
             if let stroke {
                 context.setStrokeColor(stroke.cgColor)
                 context.setLineWidth(lineWidth)
-                context.stroke(rect)
+                if let path {
+                    context.addPath(path)
+                    context.strokePath()
+                } else {
+                    context.stroke(rect)
+                }
             }
 
         case .circle(_, let cx, let cy, let radius, let stroke, let fill, let lineWidth):

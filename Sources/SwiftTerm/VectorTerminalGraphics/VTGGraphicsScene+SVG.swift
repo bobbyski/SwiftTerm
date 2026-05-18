@@ -76,8 +76,10 @@ private extension VTGPrimitive {
         case .path(_, let commands, let stroke, let fill, let lineWidth):
             return "<path d=\"\(commands.svgPathData)\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
 
-        case .rect(_, let x, let y, let width, let height, let stroke, let fill, let lineWidth):
-            return "<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
+        case .rect(_, let x, let y, let width, let height, let radius, let stroke, let fill, let lineWidth):
+            let clampedRadius = max(0, min(radius, min(width, height) / 2))
+            let radiusAttributes = clampedRadius > 0 ? " rx=\"\(svgNumber(clampedRadius))\" ry=\"\(svgNumber(clampedRadius))\"" : ""
+            return "<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\"\(radiusAttributes)\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
 
         case .circle(_, let cx, let cy, let radius, let stroke, let fill, let lineWidth):
             return "<circle cx=\"\(svgNumber(cx))\" cy=\"\(svgNumber(cy))\" r=\"\(svgNumber(radius))\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"

@@ -65,6 +65,27 @@ final class VTGGraphicsSceneTests {
         #expect(radius == 8)
     }
 
+    @Test func triangleParsesOptionalCornerRadius() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command("triangle", [
+            "id": "rounded-triangle",
+            "x1": "10",
+            "y1": "80",
+            "x2": "90",
+            "y2": "80",
+            "x3": "50",
+            "y3": "10",
+            "radius": "12"
+        ]))
+
+        guard case .triangle(_, _, _, _, let radius, _, _, _) = scene.primitives.first else {
+            Issue.record("Expected retained triangle primitive")
+            return
+        }
+        #expect(radius == 12)
+    }
+
     @Test func layerCommandMovesExistingPrimitiveWithoutRedraw() {
         let scene = VTGGraphicsScene()
 

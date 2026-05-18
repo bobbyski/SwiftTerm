@@ -50,7 +50,7 @@ public enum VTGPrimitive: Equatable {
     case line(id: String, x1: Double, y1: Double, x2: Double, y2: Double, stroke: VTGColor, width: Double)
     case draw(id: String, points: [VTGPoint], stroke: VTGColor, width: Double)
     case curve(id: String, curve: VTGCurve, stroke: VTGColor, width: Double)
-    case triangle(id: String, p1: VTGPoint, p2: VTGPoint, p3: VTGPoint, stroke: VTGColor?, fill: VTGColor?, lineWidth: Double)
+    case triangle(id: String, p1: VTGPoint, p2: VTGPoint, p3: VTGPoint, radius: Double, stroke: VTGColor?, fill: VTGColor?, lineWidth: Double)
     case path(id: String, commands: [VTGPathCommand], stroke: VTGColor?, fill: VTGColor?, lineWidth: Double)
     case rect(id: String, x: Double, y: Double, width: Double, height: Double, radius: Double, stroke: VTGColor?, fill: VTGColor?, lineWidth: Double)
     case circle(id: String, cx: Double, cy: Double, radius: Double, stroke: VTGColor?, fill: VTGColor?, lineWidth: Double)
@@ -65,7 +65,7 @@ public enum VTGPrimitive: Equatable {
              .line(let id, _, _, _, _, _, _),
              .draw(let id, _, _, _),
              .curve(let id, _, _, _),
-             .triangle(let id, _, _, _, _, _, _),
+             .triangle(let id, _, _, _, _, _, _, _),
              .path(let id, _, _, _, _),
              .rect(let id, _, _, _, _, _, _, _, _),
              .circle(let id, _, _, _, _, _, _),

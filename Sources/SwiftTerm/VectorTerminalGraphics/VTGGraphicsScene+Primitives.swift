@@ -97,6 +97,7 @@ extension VTGGraphicsScene {
             p1: VTGPoint(x: command.double("x1"), y: command.double("y1")),
             p2: VTGPoint(x: command.double("x2"), y: command.double("y2")),
             p3: VTGPoint(x: command.double("x3"), y: command.double("y3")),
+            radius: max(0, command.double("radius", default: 0)),
             stroke: command.color("stroke"),
             fill: command.color("fill"),
             lineWidth: max(1, command.double("width", default: 1))

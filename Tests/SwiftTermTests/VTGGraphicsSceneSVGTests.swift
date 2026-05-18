@@ -32,12 +32,26 @@ final class VTGGraphicsSceneSVGTests {
             "radius": "9",
             "stroke": "#5eead4"
         ]))
+        scene.apply(command("triangle", [
+            "id": "rounded-triangle",
+            "x1": "10",
+            "y1": "90",
+            "x2": "90",
+            "y2": "90",
+            "x3": "50",
+            "y3": "10",
+            "radius": "12",
+            "fill": "#3b82f6"
+        ]))
 
         let svg = scene.makeSVGFragment()
 
         #expect(svg.contains("<line x1=\"1\" y1=\"2\" x2=\"3\" y2=\"4\""))
         #expect(svg.contains("stroke=\"#22C55E\""))
         #expect(svg.contains("<rect x=\"20\" y=\"30\" width=\"40\" height=\"50\" rx=\"9\" ry=\"9\""))
+        #expect(svg.contains("<path d=\"M "))
+        #expect(svg.contains("Q 90 90"))
+        #expect(svg.contains("fill=\"#3B82F6\""))
         #expect(svg.contains("A&amp;B &lt;tag&gt;"))
     }
 

@@ -59,31 +59,31 @@ private extension VTGPrimitive {
         case .pixel(_, let x, let y, let color):
             return "<rect x=\"\(svgNumber(x.rounded(.down)))\" y=\"\(svgNumber(y.rounded(.down)))\" width=\"1\" height=\"1\" fill=\"\(color.svgColor)\" fill-opacity=\"\(svgNumber(color.alpha))\"/>"
 
-        case .line(_, let x1, let y1, let x2, let y2, let stroke, let width):
-            return "<line x1=\"\(svgNumber(x1))\" y1=\"\(svgNumber(y1))\" x2=\"\(svgNumber(x2))\" y2=\"\(svgNumber(y2))\" stroke=\"\(stroke.svgColor)\" stroke-opacity=\"\(svgNumber(stroke.alpha))\" stroke-width=\"\(svgNumber(width))\" stroke-linecap=\"round\"/>"
+        case .line(_, let x1, let y1, let x2, let y2, let stroke, let width, let lineCap):
+            return "<line x1=\"\(svgNumber(x1))\" y1=\"\(svgNumber(y1))\" x2=\"\(svgNumber(x2))\" y2=\"\(svgNumber(y2))\" stroke=\"\(stroke.svgColor)\" stroke-opacity=\"\(svgNumber(stroke.alpha))\" stroke-width=\"\(svgNumber(width))\" stroke-linecap=\"\(lineCap?.rawValue ?? "round")\"/>"
 
-        case .draw(_, let points, let stroke, let width):
+        case .draw(_, let points, let stroke, let width, let lineCap, let lineJoin):
             let coordinates = points.map { "\(svgNumber($0.x)),\(svgNumber($0.y))" }.joined(separator: " ")
-            return "<polyline points=\"\(coordinates)\" fill=\"none\" stroke=\"\(stroke.svgColor)\" stroke-opacity=\"\(svgNumber(stroke.alpha))\" stroke-width=\"\(svgNumber(width))\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+            return "<polyline points=\"\(coordinates)\" fill=\"none\" stroke=\"\(stroke.svgColor)\" stroke-opacity=\"\(svgNumber(stroke.alpha))\" stroke-width=\"\(svgNumber(width))\" stroke-linecap=\"\(lineCap?.rawValue ?? "round")\" stroke-linejoin=\"\(lineJoin?.rawValue ?? "round")\"/>"
 
-        case .curve(_, let curve, let stroke, let width):
-            return "<path d=\"\(curve.svgPathData)\" fill=\"none\" stroke=\"\(stroke.svgColor)\" stroke-opacity=\"\(svgNumber(stroke.alpha))\" stroke-width=\"\(svgNumber(width))\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"
+        case .curve(_, let curve, let stroke, let width, let lineCap, let lineJoin):
+            return "<path d=\"\(curve.svgPathData)\" fill=\"none\" stroke=\"\(stroke.svgColor)\" stroke-opacity=\"\(svgNumber(stroke.alpha))\" stroke-width=\"\(svgNumber(width))\" stroke-linecap=\"\(lineCap?.rawValue ?? "round")\" stroke-linejoin=\"\(lineJoin?.rawValue ?? "round")\"/>"
 
-        case .triangle(_, let p1, let p2, let p3, let radius, let stroke, let fill, let lineWidth):
+        case .triangle(_, let p1, let p2, let p3, let radius, let stroke, let fill, let lineWidth, let lineJoin):
             let points = [p1, p2, p3]
             if radius > 0, let pathData = roundedPolygonPathData(points: points, radius: radius) {
-                return "<path d=\"\(pathData)\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
+                return "<path d=\"\(pathData)\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth, lineJoin: lineJoin))/>"
             }
             let pointList = points.map { "\(svgNumber($0.x)),\(svgNumber($0.y))" }.joined(separator: " ")
-            return "<polygon points=\"\(pointList)\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
+            return "<polygon points=\"\(pointList)\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth, lineJoin: lineJoin))/>"
 
-        case .path(_, let commands, let stroke, let fill, let lineWidth):
-            return "<path d=\"\(commands.svgPathData)\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
+        case .path(_, let commands, let stroke, let fill, let lineWidth, let lineCap, let lineJoin):
+            return "<path d=\"\(commands.svgPathData)\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth, lineCap: lineCap, lineJoin: lineJoin))/>"
 
-        case .rect(_, let x, let y, let width, let height, let radius, let stroke, let fill, let lineWidth):
+        case .rect(_, let x, let y, let width, let height, let radius, let stroke, let fill, let lineWidth, let lineJoin):
             let clampedRadius = max(0, min(radius, min(width, height) / 2))
             let radiusAttributes = clampedRadius > 0 ? " rx=\"\(svgNumber(clampedRadius))\" ry=\"\(svgNumber(clampedRadius))\"" : ""
-            return "<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\"\(radiusAttributes)\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
+            return "<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\"\(radiusAttributes)\(svgFill(fill))\(svgStroke(stroke, width: lineWidth, lineJoin: lineJoin))/>"
 
         case .circle(_, let cx, let cy, let radius, let stroke, let fill, let lineWidth):
             return "<circle cx=\"\(svgNumber(cx))\" cy=\"\(svgNumber(cy))\" r=\"\(svgNumber(radius))\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth))/>"
@@ -126,11 +126,13 @@ private extension VTGPrimitive {
     }
 
     /// SVG stroke attributes for optional VTG strokes.
-    func svgStroke(_ color: VTGColor?, width: Double) -> String {
+    func svgStroke(_ color: VTGColor?, width: Double, lineCap: VTGLineCap? = nil, lineJoin: VTGLineJoin? = nil) -> String {
         guard let color else {
             return ""
         }
-        return " stroke=\"\(color.svgColor)\" stroke-opacity=\"\(svgNumber(color.alpha))\" stroke-width=\"\(svgNumber(width))\""
+        let cap = lineCap.map { " stroke-linecap=\"\($0.rawValue)\"" } ?? ""
+        let join = lineJoin.map { " stroke-linejoin=\"\($0.rawValue)\"" } ?? ""
+        return " stroke=\"\(color.svgColor)\" stroke-opacity=\"\(svgNumber(color.alpha))\" stroke-width=\"\(svgNumber(width))\"\(cap)\(join)"
     }
 
     /// SVG path data for a polygon whose corners are rounded with quadratic

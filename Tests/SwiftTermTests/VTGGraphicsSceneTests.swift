@@ -27,7 +27,7 @@ final class VTGGraphicsSceneTests {
         ]))
 
         #expect(scene.primitives.count == 1)
-        guard case .line(_, _, _, let x2, let y2, _, let width) = scene.primitives.first else {
+        guard case .line(_, _, _, let x2, let y2, _, let width, _) = scene.primitives.first else {
             Issue.record("Expected retained line primitive")
             return
         }
@@ -58,7 +58,7 @@ final class VTGGraphicsSceneTests {
             "radius": "8"
         ]))
 
-        guard case .rect(_, _, _, _, _, let radius, _, _, _) = scene.primitives.first else {
+        guard case .rect(_, _, _, _, _, let radius, _, _, _, _) = scene.primitives.first else {
             Issue.record("Expected retained rect primitive")
             return
         }
@@ -79,11 +79,30 @@ final class VTGGraphicsSceneTests {
             "radius": "12"
         ]))
 
-        guard case .triangle(_, _, _, _, let radius, _, _, _) = scene.primitives.first else {
+        guard case .triangle(_, _, _, _, let radius, _, _, _, _) = scene.primitives.first else {
             Issue.record("Expected retained triangle primitive")
             return
         }
         #expect(radius == 12)
+    }
+
+    @Test func parsesOptionalStrokePaintStyle() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command("draw", [
+            "id": "styled",
+            "stroke": "#22c55e",
+            "width": "4",
+            "lineCap": "square",
+            "lineJoin": "bevel"
+        ], payload: "0,0 10,10 20,0"))
+
+        guard case .draw(_, _, _, _, let lineCap, let lineJoin) = scene.primitives.first else {
+            Issue.record("Expected retained draw primitive")
+            return
+        }
+        #expect(lineCap == .square)
+        #expect(lineJoin == .bevel)
     }
 
     @Test func layerCommandMovesExistingPrimitiveWithoutRedraw() {

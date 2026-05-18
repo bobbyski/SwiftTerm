@@ -71,33 +71,33 @@ public final class VTGOverlayView: NSView {
             context.setFillColor(color.cgColor)
             context.fill(CGRect(x: x.rounded(.down), y: y.rounded(.down), width: 1, height: 1))
 
-        case .line(_, let x1, let y1, let x2, let y2, let stroke, let width):
+        case .line(_, let x1, let y1, let x2, let y2, let stroke, let width, let lineCap):
             context.setStrokeColor(stroke.cgColor)
             context.setLineWidth(width)
-            context.setLineCap(.round)
+            context.setLineCap(lineCap?.cgLineCap ?? .round)
             context.move(to: CGPoint(x: x1, y: y1))
             context.addLine(to: CGPoint(x: x2, y: y2))
             context.strokePath()
 
-        case .draw(_, let points, let stroke, let width):
+        case .draw(_, let points, let stroke, let width, let lineCap, let lineJoin):
             guard let first = points.first else {
                 return
             }
             context.setStrokeColor(stroke.cgColor)
             context.setLineWidth(width)
-            context.setLineCap(.round)
-            context.setLineJoin(.round)
+            context.setLineCap(lineCap?.cgLineCap ?? .round)
+            context.setLineJoin(lineJoin?.cgLineJoin ?? .round)
             context.move(to: CGPoint(x: first.x, y: first.y))
             for point in points.dropFirst() {
                 context.addLine(to: CGPoint(x: point.x, y: point.y))
             }
             context.strokePath()
 
-        case .curve(_, let curve, let stroke, let width):
+        case .curve(_, let curve, let stroke, let width, let lineCap, let lineJoin):
             context.setStrokeColor(stroke.cgColor)
             context.setLineWidth(width)
-            context.setLineCap(.round)
-            context.setLineJoin(.round)
+            context.setLineCap(lineCap?.cgLineCap ?? .round)
+            context.setLineJoin(lineJoin?.cgLineJoin ?? .round)
             switch curve {
             case .quadratic(let start, let control, let end):
                 context.move(to: CGPoint(x: start.x, y: start.y))
@@ -112,17 +112,17 @@ public final class VTGOverlayView: NSView {
             }
             context.strokePath()
 
-        case .triangle(_, let p1, let p2, let p3, let radius, let stroke, let fill, let lineWidth):
+        case .triangle(_, let p1, let p2, let p3, let radius, let stroke, let fill, let lineWidth, let lineJoin):
             context.beginPath()
             applyRoundedPolygonPath(points: [p1, p2, p3], radius: radius, in: context)
-            drawCurrentPath(stroke: stroke, fill: fill, lineWidth: lineWidth, in: context)
+            drawCurrentPath(stroke: stroke, fill: fill, lineWidth: lineWidth, lineJoin: lineJoin, in: context)
 
-        case .path(_, let commands, let stroke, let fill, let lineWidth):
+        case .path(_, let commands, let stroke, let fill, let lineWidth, let lineCap, let lineJoin):
             context.beginPath()
             applyPathCommands(commands, in: context)
-            drawCurrentPath(stroke: stroke, fill: fill, lineWidth: lineWidth, in: context)
+            drawCurrentPath(stroke: stroke, fill: fill, lineWidth: lineWidth, lineCap: lineCap, lineJoin: lineJoin, in: context)
 
-        case .rect(_, let x, let y, let width, let height, let radius, let stroke, let fill, let lineWidth):
+        case .rect(_, let x, let y, let width, let height, let radius, let stroke, let fill, let lineWidth, let lineJoin):
             let rect = CGRect(x: x, y: y, width: width, height: height)
             let clampedRadius = max(0, min(radius, min(width, height) / 2))
             let path = clampedRadius > 0 ? CGPath(roundedRect: rect, cornerWidth: clampedRadius, cornerHeight: clampedRadius, transform: nil) : nil
@@ -138,6 +138,9 @@ public final class VTGOverlayView: NSView {
             if let stroke {
                 context.setStrokeColor(stroke.cgColor)
                 context.setLineWidth(lineWidth)
+                if let lineJoin {
+                    context.setLineJoin(lineJoin.cgLineJoin)
+                }
                 if let path {
                     context.addPath(path)
                     context.strokePath()
@@ -310,11 +313,17 @@ public final class VTGOverlayView: NSView {
     }
 
     /// Fill and/or stroke the current path without losing one operation to the other.
-    private func drawCurrentPath(stroke: VTGColor?, fill: VTGColor?, lineWidth: Double, in context: CGContext) {
+    private func drawCurrentPath(stroke: VTGColor?, fill: VTGColor?, lineWidth: Double, lineCap: VTGLineCap? = nil, lineJoin: VTGLineJoin? = nil, in context: CGContext) {
         if let fill, let stroke {
             context.setFillColor(fill.cgColor)
             context.setStrokeColor(stroke.cgColor)
             context.setLineWidth(lineWidth)
+            if let lineCap {
+                context.setLineCap(lineCap.cgLineCap)
+            }
+            if let lineJoin {
+                context.setLineJoin(lineJoin.cgLineJoin)
+            }
             context.drawPath(using: .fillStroke)
         } else if let fill {
             context.setFillColor(fill.cgColor)
@@ -322,6 +331,12 @@ public final class VTGOverlayView: NSView {
         } else if let stroke {
             context.setStrokeColor(stroke.cgColor)
             context.setLineWidth(lineWidth)
+            if let lineCap {
+                context.setLineCap(lineCap.cgLineCap)
+            }
+            if let lineJoin {
+                context.setLineJoin(lineJoin.cgLineJoin)
+            }
             context.strokePath()
         } else {
             context.beginPath()
@@ -338,6 +353,32 @@ public final class VTGOverlayView: NSView {
             context.setStrokeColor(stroke.cgColor)
             context.setLineWidth(lineWidth)
             context.strokeEllipse(in: rect)
+        }
+    }
+}
+
+private extension VTGLineCap {
+    var cgLineCap: CGLineCap {
+        switch self {
+        case .butt:
+            return .butt
+        case .round:
+            return .round
+        case .square:
+            return .square
+        }
+    }
+}
+
+private extension VTGLineJoin {
+    var cgLineJoin: CGLineJoin {
+        switch self {
+        case .miter:
+            return .miter
+        case .round:
+            return .round
+        case .bevel:
+            return .bevel
         }
     }
 }

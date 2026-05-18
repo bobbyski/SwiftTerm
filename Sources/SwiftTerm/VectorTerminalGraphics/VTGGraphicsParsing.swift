@@ -102,6 +102,18 @@ extension VectorTerminalGraphicsCommand {
         }
         return VTGLayerModel.clamped(value)
     }
+
+    /// Parse optional stroke endpoint style. Unknown values are ignored so
+    /// older or typo-prone clients do not poison retained scene state.
+    func lineCap() -> VTGLineCap? {
+        parameters["lineCap"].flatMap(VTGLineCap.init(rawValue:))
+    }
+
+    /// Parse optional stroke corner style. Unknown values are ignored so the
+    /// renderer falls back to each primitive's historical default.
+    func lineJoin() -> VTGLineJoin? {
+        parameters["lineJoin"].flatMap(VTGLineJoin.init(rawValue:))
+    }
 }
 
 extension VTGColor {

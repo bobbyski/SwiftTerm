@@ -25,7 +25,8 @@ extension VTGGraphicsScene {
             x2: command.double("x2"),
             y2: command.double("y2"),
             stroke: command.color("stroke") ?? .foreground,
-            width: max(1, command.double("width", default: 1))
+            width: max(1, command.double("width", default: 1)),
+            lineCap: command.lineCap()
         )
     }
 
@@ -54,7 +55,9 @@ extension VTGGraphicsScene {
             id: id,
             points: points,
             stroke: command.color("stroke") ?? .foreground,
-            width: max(1, command.double("width", default: 1))
+            width: max(1, command.double("width", default: 1)),
+            lineCap: command.lineCap(),
+            lineJoin: command.lineJoin()
         )
     }
 
@@ -84,7 +87,9 @@ extension VTGGraphicsScene {
             id: id,
             curve: curve,
             stroke: command.color("stroke") ?? .foreground,
-            width: max(1, command.double("width", default: 1))
+            width: max(1, command.double("width", default: 1)),
+            lineCap: command.lineCap(),
+            lineJoin: command.lineJoin()
         )
     }
 
@@ -100,7 +105,8 @@ extension VTGGraphicsScene {
             radius: max(0, command.double("radius", default: 0)),
             stroke: command.color("stroke"),
             fill: command.color("fill"),
-            lineWidth: max(1, command.double("width", default: 1))
+            lineWidth: max(1, command.double("width", default: 1)),
+            lineJoin: command.lineJoin()
         )
     }
 
@@ -115,7 +121,9 @@ extension VTGGraphicsScene {
             commands: commands,
             stroke: command.color("stroke"),
             fill: command.color("fill"),
-            lineWidth: max(1, command.double("width", default: 1))
+            lineWidth: max(1, command.double("width", default: 1)),
+            lineCap: command.lineCap(),
+            lineJoin: command.lineJoin()
         )
     }
 
@@ -132,7 +140,8 @@ extension VTGGraphicsScene {
             radius: max(0, command.double("radius", default: 0)),
             stroke: command.color("stroke"),
             fill: command.color("fill"),
-            lineWidth: max(1, command.double("width", default: 1))
+            lineWidth: max(1, command.double("width", default: 1)),
+            lineJoin: command.lineJoin()
         )
     }
 

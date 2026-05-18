@@ -109,6 +109,23 @@ final class VTGGraphicsSceneSVGTests {
         #expect(svg.contains("<line x1=\"0\" y1=\"0\" x2=\"320\" y2=\"200\""))
     }
 
+    @Test func exportsStrokePaintStyleAttributes() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command("path", [
+            "id": "styled-path",
+            "stroke": "#22c55e",
+            "width": "5",
+            "lineCap": "square",
+            "lineJoin": "bevel"
+        ], payload: "M 0 0 L 10 10 L 20 0"))
+
+        let svg = scene.makeSVGFragment()
+
+        #expect(svg.contains("stroke-linecap=\"square\""))
+        #expect(svg.contains("stroke-linejoin=\"bevel\""))
+    }
+
     private func command(
         _ name: String,
         _ parameters: [String: String] = [:],

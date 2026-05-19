@@ -11,9 +11,9 @@ public final class VTGHostController {
     public let scene = VTGGraphicsScene()
 
     private let parser = VectorTerminalGraphicsParser()
-    private let now: () -> Date
+    let now: () -> Date
     private var lastReportedCanvas: VTGCanvasSize?
-    private var pendingFrame: PendingFrame?
+    var pendingFrame: PendingFrame?
 
     public private(set) var sendsResizeEvents = false
     public private(set) var sendsMouseEvents = false
@@ -192,86 +192,6 @@ public final class VTGHostController {
         }
     }
 
-    private var activeScene: VTGGraphicsScene {
-        pendingFrame?.scene ?? scene
-    }
-
-    private func handleFrameCommand(_ command: VectorTerminalGraphicsCommand) -> FrameCommandResult {
-        switch command.name {
-        case "startFrame":
-            return FrameCommandResult(handled: true, response: startFrame(command))
-        case "endFrame":
-            return FrameCommandResult(handled: true, response: endFrame(command))
-        case "cancelFrame":
-            return FrameCommandResult(handled: true, response: cancelFrame(command))
-        default:
-            return FrameCommandResult(handled: false, response: nil)
-        }
-    }
-
-    private func startFrame(_ command: VectorTerminalGraphicsCommand) -> String {
-        let frameID = frameID(from: command)
-        let timeoutMilliseconds = timeoutMilliseconds(from: command)
-        guard pendingFrame == nil else {
-            return VTGResponseEncoder.frameEvent("frameRejected", id: frameID, reason: "nested")
-        }
-        pendingFrame = PendingFrame(
-            id: frameID,
-            deadline: now().addingTimeInterval(TimeInterval(timeoutMilliseconds) / 1_000),
-            scene: scene.makeSnapshot()
-        )
-        return VTGResponseEncoder.frameEvent("frameStarted", id: frameID, timeoutMilliseconds: timeoutMilliseconds)
-    }
-
-    private func endFrame(_ command: VectorTerminalGraphicsCommand) -> String? {
-        guard let pendingFrame else {
-            return nil
-        }
-        guard frameIDMatches(command, pendingFrame: pendingFrame) else {
-            return VTGResponseEncoder.frameEvent("frameRejected", id: frameID(from: command), reason: "idMismatch")
-        }
-        scene.replaceContents(with: pendingFrame.scene)
-        self.pendingFrame = nil
-        return VTGResponseEncoder.frameEvent("frameCommitted", id: pendingFrame.id)
-    }
-
-    private func cancelFrame(_ command: VectorTerminalGraphicsCommand) -> String? {
-        guard let pendingFrame else {
-            return nil
-        }
-        guard frameIDMatches(command, pendingFrame: pendingFrame) else {
-            return VTGResponseEncoder.frameEvent("frameRejected", id: frameID(from: command), reason: "idMismatch")
-        }
-        self.pendingFrame = nil
-        return VTGResponseEncoder.frameEvent("frameCanceled", id: pendingFrame.id, reason: "app")
-    }
-
-    private func expirePendingFrameIfNeeded() -> String? {
-        guard let pendingFrame,
-              now() >= pendingFrame.deadline else {
-            return nil
-        }
-        self.pendingFrame = nil
-        return VTGResponseEncoder.frameEvent("frameTimeout", id: pendingFrame.id, reason: "timeout")
-    }
-
-    private func frameID(from command: VectorTerminalGraphicsCommand) -> String {
-        let value = command.parameters["id"] ?? "default"
-        return value.isEmpty ? "default" : value
-    }
-
-    private func frameIDMatches(_ command: VectorTerminalGraphicsCommand, pendingFrame: PendingFrame) -> Bool {
-        guard let requestedID = command.parameters["id"], requestedID.isEmpty == false else {
-            return true
-        }
-        return requestedID == pendingFrame.id
-    }
-
-    private func timeoutMilliseconds(from command: VectorTerminalGraphicsCommand) -> Int {
-        let rawMilliseconds = command.parameters["timeout"].flatMap(Double.init) ?? 250
-        return Int(min(10_000, max(1, rawMilliseconds)))
-    }
-
     private func acceptsMouseEvent(type: VTGMouseEventType) -> Bool {
         switch mouseMode {
         case .click:
@@ -285,13 +205,13 @@ public final class VTGHostController {
         }
     }
 
-    private struct PendingFrame {
+    struct PendingFrame {
         var id: String
         var deadline: Date
         var scene: VTGGraphicsScene
     }
 
-    private struct FrameCommandResult {
+    struct FrameCommandResult {
         var handled: Bool
         var response: String?
     }

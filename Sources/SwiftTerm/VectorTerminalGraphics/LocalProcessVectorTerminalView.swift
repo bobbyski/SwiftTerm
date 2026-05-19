@@ -2,27 +2,6 @@
 import AppKit
 import Foundation
 
-/// Delegate for ``LocalProcessVectorTerminalView`` process lifecycle events.
-///
-/// This mirrors `LocalProcessTerminalViewDelegate` while using
-/// `LocalProcessVectorTerminalView` as the source type. Keeping it separate lets
-/// existing SwiftTerm users keep their current delegates unchanged, while VTG
-/// adopters get strong typing for the new drop-in view.
-public protocol LocalProcessVectorTerminalViewDelegate: AnyObject {
-    /// Called after the terminal grid changes size and the pseudo-terminal size
-    /// has been updated for the child process.
-    func sizeChanged(source: LocalProcessVectorTerminalView, newCols: Int, newRows: Int)
-
-    /// Called when the child process requests a terminal title change.
-    func setTerminalTitle(source: LocalProcessVectorTerminalView, title: String)
-
-    /// Called when OSC 7 reports a new host current directory.
-    func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?)
-
-    /// Called when the child process exits.
-    func processTerminated(source: TerminalView, exitCode: Int32?)
-}
-
 /// VTG-capable local-process terminal view.
 ///
 /// `LocalProcessVectorTerminalView` is the process-backed companion to
@@ -40,8 +19,8 @@ open class LocalProcessVectorTerminalView: VectorTerminalView, TerminalViewDeleg
     /// Delegate used to report process and terminal metadata changes.
     public weak var processDelegate: LocalProcessVectorTerminalViewDelegate?
 
-    private let vtgClickSynthesizer = VTGMouseClickSynthesizer()
-    private var scrollEventMonitor: Any?
+    let vtgClickSynthesizer = VTGMouseClickSynthesizer()
+    var scrollEventMonitor: Any?
 
     public override init(frame: CGRect, font: NSFont?) {
         super.init(frame: frame, font: font)
@@ -69,31 +48,50 @@ open class LocalProcessVectorTerminalView: VectorTerminalView, TerminalViewDeleg
         }
     }
 
-    /// Launch a child process inside a pseudo-terminal.
-    public func startProcess(
-        executable: String = "/bin/bash",
-        args: [String] = [],
-        environment: [String]? = nil,
-        execName: String? = nil,
-        currentDirectory: String? = nil
-    ) {
-        process.startProcess(
-            executable: executable,
-            args: args,
-            environment: environment,
-            execName: execName,
-            currentDirectory: currentDirectory
-        )
+    /// Export the current terminal plus VTG overlay as an SVG debug snapshot.
+    public func exportSVGSnapshot() {
+        let previousMode = rendererMode
+        do {
+            try setRendererMode(.svg)
+            let svg = makeSVGSnapshot { [vtgSession, weak self] context in
+                let canvas = self?.currentVTGCanvas() ?? VTGCanvasSize(width: 0, height: 0)
+                context.appendRawSVG(vtgSession.controller.scene.makeSVGFragment(
+                    canvasWidth: Double(canvas.width),
+                    canvasHeight: Double(canvas.height)
+                ))
+            }
+            let fileURL = try writeSVGSnapshot(svg)
+            print("VectorTerminal SVG snapshot: \(fileURL.path)")
+        } catch {
+            print("VectorTerminal SVG snapshot failed: \(error)")
+        }
+        try? setRendererMode(previousMode)
     }
 
-    /// Terminate the child process.
-    public func terminate() {
-        process.terminate()
+    open override func mouseDown(with event: NSEvent) {
+        if handleVTGMouseDown(event) {
+            return
+        }
+        super.mouseDown(with: event)
     }
 
-    /// Enable or disable host IO logging for the child process.
-    public func setHostLogging(directory: String?) {
-        process.setHostLogging(directory: directory)
+    open override func mouseUp(with event: NSEvent) {
+        if handleVTGMouseUp(event) {
+            return
+        }
+        super.mouseUp(with: event)
+    }
+
+    open override func mouseDragged(with event: NSEvent) {
+        if sendVTGMouseEventToChild(event, type: .drag) {
+            return
+        }
+        super.mouseDragged(with: event)
+    }
+
+    open override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateVTGScrollEventMonitor()
     }
 
     /// Send user input to the child process.
@@ -187,175 +185,5 @@ open class LocalProcessVectorTerminalView: VectorTerminalView, TerminalViewDeleg
         )
     }
 
-    /// Export the current terminal plus VTG overlay as an SVG debug snapshot.
-    public func exportSVGSnapshot() {
-        let previousMode = rendererMode
-        do {
-            try setRendererMode(.svg)
-            let svg = makeSVGSnapshot { [vtgSession, weak self] context in
-                let canvas = self?.currentVTGCanvas() ?? VTGCanvasSize(width: 0, height: 0)
-                context.appendRawSVG(vtgSession.controller.scene.makeSVGFragment(
-                    canvasWidth: Double(canvas.width),
-                    canvasHeight: Double(canvas.height)
-                ))
-            }
-            let fileURL = try writeSVGSnapshot(svg)
-            print("VectorTerminal SVG snapshot: \(fileURL.path)")
-        } catch {
-            print("VectorTerminal SVG snapshot failed: \(error)")
-        }
-        try? setRendererMode(previousMode)
-    }
-
-    open override func mouseDown(with event: NSEvent) {
-        if handleVTGMouseDown(event) {
-            return
-        }
-        super.mouseDown(with: event)
-    }
-
-    open override func mouseUp(with event: NSEvent) {
-        if handleVTGMouseUp(event) {
-            return
-        }
-        super.mouseUp(with: event)
-    }
-
-    open override func mouseDragged(with event: NSEvent) {
-        if sendVTGMouseEventToChild(event, type: .drag) {
-            return
-        }
-        super.mouseDragged(with: event)
-    }
-
-    open override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        updateVTGScrollEventMonitor()
-    }
-
-    private func writeSVGSnapshot(_ svg: String) throws -> URL {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let fileName = "VectorTerminal-\(formatter.string(from: Date())).svg"
-        let directory = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Desktop", isDirectory: true)
-        let fileURL = directory.appendingPathComponent(fileName)
-        try svg.write(to: fileURL, atomically: true, encoding: .utf8)
-        return fileURL
-    }
-
-    private func updateVTGScrollEventMonitor() {
-        if let scrollEventMonitor {
-            NSEvent.removeMonitor(scrollEventMonitor)
-            self.scrollEventMonitor = nil
-        }
-        guard window != nil else {
-            return
-        }
-        scrollEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self,
-                  event.window === self.window,
-                  self.bounds.contains(self.convert(event.locationInWindow, from: nil)) else {
-                return event
-            }
-            return self.sendVTGScrollEventToChild(event) ? nil : event
-        }
-    }
-
-    private func handleVTGMouseDown(_ event: NSEvent) -> Bool {
-        guard vtgSession.sendsMouseEvents else {
-            return false
-        }
-        if let snapshot = vtgMouseSnapshot(for: event) {
-            vtgClickSynthesizer.recordDown(
-                button: event.buttonNumber,
-                snapshot: snapshot,
-                timestamp: event.timestamp
-            )
-        }
-        if vtgSession.mouseMode.emitsRawMouse {
-            return sendVTGMouseEventToChild(event, type: .down)
-        }
-        return true
-    }
-
-    private func handleVTGMouseUp(_ event: NSEvent) -> Bool {
-        guard vtgSession.sendsMouseEvents else {
-            return false
-        }
-        var handled = false
-        if vtgSession.mouseMode.emitsRawMouse {
-            handled = sendVTGMouseEventToChild(event, type: .up)
-        }
-        if shouldSynthesizeClick(for: event),
-           sendVTGMouseEventToChild(event, type: .click) {
-            handled = true
-        }
-        vtgClickSynthesizer.reset()
-        return handled || vtgSession.mouseMode == .click
-    }
-
-    private func shouldSynthesizeClick(for event: NSEvent) -> Bool {
-        guard let snapshot = vtgMouseSnapshot(for: event) else {
-            return false
-        }
-        return vtgClickSynthesizer.shouldSynthesizeClick(
-            button: event.buttonNumber,
-            snapshot: snapshot,
-            timestamp: event.timestamp
-        )
-    }
-
-    private func sendVTGMouseEventToChild(_ event: NSEvent, type: VTGMouseEventType) -> Bool {
-        guard let snapshot = vtgMouseSnapshot(for: event) else {
-            return false
-        }
-        return vtgSession.sendMouseEvent(
-            type: type,
-            button: event.buttonNumber,
-            snapshot: snapshot
-        )
-    }
-
-    private func sendVTGScrollEventToChild(_ event: NSEvent) -> Bool {
-        guard vtgSession.sendsMouseEvents,
-              vtgSession.mouseMode.emitsScroll,
-              let snapshot = vtgMouseSnapshot(for: event) else {
-            return false
-        }
-        let scrollX = Int((event.hasPreciseScrollingDeltas ? event.scrollingDeltaX : event.deltaX).rounded())
-        let scrollY = Int((event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY).rounded())
-        let button = scrollY > 0 ? 4 : scrollY < 0 ? 5 : 6
-        return vtgSession.sendMouseEvent(
-            type: .scroll,
-            button: button,
-            snapshot: snapshot,
-            scrollX: scrollX,
-            scrollY: scrollY
-        )
-    }
-
-    private func vtgMouseSnapshot(for event: NSEvent) -> VTGMouseSnapshot? {
-        let point = convert(event.locationInWindow, from: nil)
-        let mapper = VTGMouseCoordinateMapper(
-            columns: terminal.cols,
-            rows: terminal.rows,
-            canvasWidth: Double(bounds.width),
-            canvasHeight: Double(bounds.height)
-        )
-        guard let position = mapper.cellPosition(
-            pixelX: Double(point.x),
-            pixelY: Double(bounds.height - point.y)
-        ) else {
-            return nil
-        }
-        return VTGMouseSnapshot(
-            x: position.pixelX,
-            y: position.pixelY,
-            cellX: position.gridCol + 1,
-            cellY: position.gridRow + 1,
-            modifiers: event.modifierFlags.vtgMouseModifiers
-        )
-    }
 }
 #endif

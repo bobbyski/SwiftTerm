@@ -2,6 +2,26 @@
 import Foundation
 
 extension LocalProcessVectorTerminalView {
+    /// Export the current terminal plus VTG overlay as an SVG debug snapshot.
+    public func exportSVGSnapshot() {
+        let previousMode = rendererMode
+        do {
+            try setRendererMode(.svg)
+            let svg = makeSVGSnapshot { [vtgSession, weak self] context in
+                let canvas = self?.currentVTGCanvas() ?? VTGCanvasSize(width: 0, height: 0)
+                context.appendRawSVG(vtgSession.controller.scene.makeSVGFragment(
+                    canvasWidth: Double(canvas.width),
+                    canvasHeight: Double(canvas.height)
+                ))
+            }
+            let fileURL = try writeSVGSnapshot(svg)
+            print("VectorTerminal SVG snapshot: \(fileURL.path)")
+        } catch {
+            print("VectorTerminal SVG snapshot failed: \(error)")
+        }
+        try? setRendererMode(previousMode)
+    }
+
     func writeSVGSnapshot(_ svg: String) throws -> URL {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"

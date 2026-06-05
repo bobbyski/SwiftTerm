@@ -1,45 +1,5 @@
 import Foundation
 
-/// Result of separating VectorTerminal Graphics commands from terminal bytes.
-///
-/// `terminalBytes` are bytes that should continue through SwiftTerm's normal
-/// terminal parser. `commands` contains complete VTG APC commands that an
-/// embedder or future SwiftTerm-hosted graphics plane can handle separately.
-public struct VectorTerminalGraphicsParseResult: Equatable {
-    public var terminalBytes: [UInt8]
-    public var commands: [VectorTerminalGraphicsCommand]
-
-    public init(
-        terminalBytes: [UInt8],
-        commands: [VectorTerminalGraphicsCommand]
-    ) {
-        self.terminalBytes = terminalBytes
-        self.commands = commands
-    }
-}
-
-/// Parsed representation of one `ESC _ VTG;... ESC \` graphics command.
-public struct VectorTerminalGraphicsCommand: Equatable {
-    /// Command name, such as `line`, `rect`, `capabilities?`, or `mouseEvents`.
-    public var name: String
-
-    /// Comma-separated `key=value` fields parsed from the command header.
-    public var parameters: [String: String]
-
-    /// Optional semicolon payload following the command header.
-    public var payload: String?
-
-    public init(
-        name: String,
-        parameters: [String: String] = [:],
-        payload: String? = nil
-    ) {
-        self.name = name
-        self.parameters = parameters
-        self.payload = payload
-    }
-}
-
 /// Incremental parser for VectorTerminal Graphics APC sequences.
 ///
 /// VTG uses the ANSI APC string-control envelope:
@@ -156,52 +116,4 @@ public final class VectorTerminalGraphicsParser {
         return nil
     }
 
-    private func parseVTGSequence(_ sequence: [UInt8]) -> VectorTerminalGraphicsCommand? {
-        guard sequence.count >= 9 else {
-            return nil
-        }
-
-        let contentBytes = sequence.dropFirst(6).dropLast(2)
-        guard let content = String(bytes: contentBytes, encoding: .utf8) else {
-            return nil
-        }
-        return parseContent(content)
-    }
-
-    private func parseContent(_ content: String) -> VectorTerminalGraphicsCommand? {
-        let parts = content.split(
-            separator: ";",
-            maxSplits: 1,
-            omittingEmptySubsequences: false
-        )
-        let commandPart = String(parts.first ?? "")
-        let payload = parts.count > 1 ? String(parts[1]) : nil
-        let fields = commandPart.split(
-            separator: ",",
-            omittingEmptySubsequences: false
-        ).map(String.init)
-
-        guard let name = fields.first, !name.isEmpty else {
-            return nil
-        }
-
-        var parameters: [String: String] = [:]
-        for field in fields.dropFirst() {
-            let pair = field.split(
-                separator: "=",
-                maxSplits: 1,
-                omittingEmptySubsequences: false
-            )
-            guard pair.count == 2 else {
-                continue
-            }
-            parameters[String(pair[0])] = String(pair[1])
-        }
-
-        return VectorTerminalGraphicsCommand(
-            name: name,
-            parameters: parameters,
-            payload: payload
-        )
-    }
 }

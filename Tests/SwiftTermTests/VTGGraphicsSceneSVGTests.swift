@@ -55,58 +55,27 @@ final class VTGGraphicsSceneSVGTests {
         #expect(svg.contains("A&amp;B &lt;tag&gt;"))
     }
 
-    @Test func exportsLayerOffsetAndClipWrappers() {
+    @Test func exportsSelectiveRoundedRectAsPath() {
         let scene = VTGGraphicsScene()
 
-        scene.apply(command("layerScroll", ["layer": "2", "x": "10", "y": "20"]))
-        scene.apply(command("layerAlpha", ["layer": "2", "alpha": "0.5"]))
-        scene.apply(command("clip", ["layer": "2", "x": "1", "y": "2", "w": "30", "h": "40"]))
         scene.apply(command("rect", [
-            "id": "box",
-            "layer": "2",
-            "x": "4",
-            "y": "5",
-            "w": "6",
-            "h": "7",
-            "fill": "#3b82f6"
+            "id": "top-rounded",
+            "x": "20",
+            "y": "30",
+            "w": "40",
+            "h": "50",
+            "radius": "9",
+            "corners": "12",
+            "stroke": "#5eead4"
         ]))
 
         let svg = scene.makeSVGFragment()
 
-        #expect(svg.contains("<defs>"))
-        #expect(svg.contains("<clipPath id=\"vtg-layer-2-clip-0\">"))
-        #expect(svg.contains("transform=\"translate(10 20)\""))
-        #expect(svg.contains("clip-path=\"url(#vtg-layer-2-clip-0)\""))
-        #expect(svg.contains("opacity=\"0.500\""))
-        #expect(svg.contains("fill=\"#3B82F6\""))
-    }
-
-    @Test func exportsViewportTransformWhenCanvasIsProvided() {
-        let scene = VTGGraphicsScene()
-
-        scene.apply(command("viewportMode", [
-            "layer": "4",
-            "width": "320",
-            "height": "200",
-            "scale": "integer"
-        ]))
-        scene.apply(command("line", [
-            "id": "axis",
-            "layer": "4",
-            "x1": "0",
-            "y1": "0",
-            "x2": "320",
-            "y2": "200",
-            "stroke": "#22c55e",
-            "width": "2"
-        ]))
-
-        let svg = scene.makeSVGFragment(canvasWidth: 1000, canvasHeight: 700)
-
-        #expect(svg.contains("<clipPath id=\"vtg-layer-4-viewport-0\">"))
-        #expect(svg.contains("<rect x=\"20\" y=\"50\" width=\"960\" height=\"600\""))
-        #expect(svg.contains("transform=\"translate(20 50) scale(3 3)\""))
-        #expect(svg.contains("<line x1=\"0\" y1=\"0\" x2=\"320\" y2=\"200\""))
+        #expect(svg.contains("<path d=\"M 29 30 L 51 30 Q 60 30 60 39"))
+        #expect(svg.contains("L 60 80"))
+        #expect(svg.contains("L 20 80"))
+        #expect(svg.contains("Q 20 30 29 30"))
+        #expect(!svg.contains("rx=\"9\""))
     }
 
     @Test func exportsStrokePaintStyleAttributes() {

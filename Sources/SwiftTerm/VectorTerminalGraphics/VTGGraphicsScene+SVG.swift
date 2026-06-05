@@ -80,8 +80,11 @@ private extension VTGPrimitive {
         case .path(_, let commands, let stroke, let fill, let lineWidth, let lineCap, let lineJoin):
             return "<path d=\"\(commands.svgPathData)\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth, lineCap: lineCap, lineJoin: lineJoin))/>"
 
-        case .rect(_, let x, let y, let width, let height, let radius, let stroke, let fill, let lineWidth, let lineJoin):
+        case .rect(_, let x, let y, let width, let height, let radius, let corners, let stroke, let fill, let lineWidth, let lineJoin):
             let clampedRadius = max(0, min(radius, min(width, height) / 2))
+            if clampedRadius > 0, let corners, let pathData = roundedRectPathData(x: x, y: y, width: width, height: height, radius: clampedRadius, corners: corners) {
+                return "<path d=\"\(pathData)\"\(svgFill(fill))\(svgStroke(stroke, width: lineWidth, lineJoin: lineJoin))/>"
+            }
             let radiusAttributes = clampedRadius > 0 ? " rx=\"\(svgNumber(clampedRadius))\" ry=\"\(svgNumber(clampedRadius))\"" : ""
             return "<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\"\(radiusAttributes)\(svgFill(fill))\(svgStroke(stroke, width: lineWidth, lineJoin: lineJoin))/>"
 

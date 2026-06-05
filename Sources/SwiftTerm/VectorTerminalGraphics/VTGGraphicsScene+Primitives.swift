@@ -93,89 +93,6 @@ extension VTGGraphicsScene {
         )
     }
 
-    func parseTriangle(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
-        guard let id = command.parameters["id"] else {
-            return nil
-        }
-        return .triangle(
-            id: id,
-            p1: VTGPoint(x: command.double("x1"), y: command.double("y1")),
-            p2: VTGPoint(x: command.double("x2"), y: command.double("y2")),
-            p3: VTGPoint(x: command.double("x3"), y: command.double("y3")),
-            radius: max(0, command.double("radius", default: 0)),
-            stroke: command.color("stroke"),
-            fill: command.color("fill"),
-            lineWidth: max(1, command.double("width", default: 1)),
-            lineJoin: command.lineJoin()
-        )
-    }
-
-    func parsePath(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
-        guard let id = command.parameters["id"],
-              let commands = VTGPathParser.parse(command.payload ?? ""),
-              commands.isEmpty == false else {
-            return nil
-        }
-        return .path(
-            id: id,
-            commands: commands,
-            stroke: command.color("stroke"),
-            fill: command.color("fill"),
-            lineWidth: max(1, command.double("width", default: 1)),
-            lineCap: command.lineCap(),
-            lineJoin: command.lineJoin()
-        )
-    }
-
-    func parseRect(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
-        guard let id = command.parameters["id"] else {
-            return nil
-        }
-        return .rect(
-            id: id,
-            x: command.double("x"),
-            y: command.double("y"),
-            width: command.double("w"),
-            height: command.double("h"),
-            radius: max(0, command.double("radius", default: 0)),
-            stroke: command.color("stroke"),
-            fill: command.color("fill"),
-            lineWidth: max(1, command.double("width", default: 1)),
-            lineJoin: command.lineJoin()
-        )
-    }
-
-    func parseCircle(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
-        guard let id = command.parameters["id"] else {
-            return nil
-        }
-        return .circle(
-            id: id,
-            cx: command.double("cx"),
-            cy: command.double("cy"),
-            radius: command.double("r"),
-            stroke: command.color("stroke"),
-            fill: command.color("fill"),
-            lineWidth: max(1, command.double("width", default: 1))
-        )
-    }
-
-    func parseEllipse(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
-        guard let id = command.parameters["id"] else {
-            return nil
-        }
-        return .ellipse(
-            id: id,
-            cx: command.double("cx"),
-            cy: command.double("cy"),
-            rx: command.double("rx"),
-            ry: command.double("ry"),
-            stroke: command.color("stroke"),
-            fill: command.color("fill"),
-            lineWidth: max(1, command.double("width", default: 1))
-        )
-    }
-
     func parseText(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
         guard let id = command.parameters["id"] else {
             return nil
@@ -187,30 +104,6 @@ extension VTGGraphicsScene {
             value: command.payload ?? "",
             color: command.color("color") ?? .foreground,
             size: max(1, command.double("size", default: 14))
-        )
-    }
-
-    func parseImage(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
-        guard let id = command.parameters["id"],
-              let payload = command.payload,
-              let data = Data(base64Encoded: payload) else {
-            return nil
-        }
-        let format = command.parameters["format"] ?? "png"
-        let width = command.double("width", default: command.double("w"))
-        let height = command.double("height", default: command.double("h"))
-        guard width > 0, height > 0 else {
-            return nil
-        }
-        return .image(
-            id: id,
-            x: command.double("x"),
-            y: command.double("y"),
-            width: width,
-            height: height,
-            format: format,
-            data: data,
-            base64: payload
         )
     }
 }

@@ -430,7 +430,7 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         let viewport = SIMD2<Float>(Float(view.drawableSize.width), Float(view.drawableSize.height))
 
         if let frame = drawData.frame {
-            drawFrameData(frame, encoder: encoder, viewport: viewport)
+            drawFrameData(frame, encoder: encoder, viewport: viewport, scale: scale)
         } else {
             let rows = drawData.rows
             drawVertexBuffers(rows: rows,
@@ -445,6 +445,8 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
                           imageKey: \.underImageBuffers,
                           encoder: encoder,
                           viewport: viewport)
+
+            drawVTGUnderTextPlaneIfNeeded(encoder: encoder, viewport: viewport, scale: scale)
 
             drawVertexBuffers(rows: rows,
                               bufferKey: \.glyphGrayBuffer,
@@ -1930,7 +1932,383 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: cells.count * 6)
     }
 
-    private func drawFrameData(_ frame: FrameDrawData, encoder: MTLRenderCommandEncoder, viewport: SIMD2<Float>) {
+    private func drawVTGUnderTextPlaneIfNeeded(encoder: MTLRenderCommandEncoder, viewport: SIMD2<Float>, scale: CGFloat) {
+        #if os(macOS)
+        guard let terminalView = terminalView as? VectorTerminalView else {
+            return
+        }
+        let scene = terminalView.vtgSession.visibleSceneSnapshot
+        let plan = scene.renderPlan(
+            plane: .underText,
+            canvas: VTGRenderCanvas(width: terminalView.bounds.width, height: terminalView.bounds.height)
+        )
+        guard plan.entries.isEmpty == false else {
+            return
+        }
+        let vertices = makeVTGTextPlaneVertices(
+            plan: plan,
+            scale: scale,
+            drawableHeight: CGFloat(viewport.y)
+        )
+        guard vertices.isEmpty == false, let buffer = makeBuffer(vertices) else {
+            return
+        }
+        encoder.setRenderPipelineState(colorPipeline)
+        encoder.setVertexBuffer(buffer, offset: 0, index: 0)
+        var viewportVar = viewport
+        encoder.setVertexBytes(&viewportVar, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vertices.count)
+        #endif
+    }
+
+    #if os(macOS)
+    private func makeVTGTextPlaneVertices(
+        plan: VTGRenderPlan,
+        scale: CGFloat,
+        drawableHeight: CGFloat
+    ) -> [ColorVertex] {
+        // Keep this first Metal pass intentionally small. The compatibility
+        // overlay still renders unsupported VTG primitives while this path
+        // proves ordering and coordinate behavior for the under-text subset.
+        var vertices: [ColorVertex] = []
+        for entry in plan.entries {
+            let alpha = Float(entry.alpha)
+            switch entry.primitive {
+            case .pixel(_, let x, let y, let color):
+                appendVTGRect(
+                    x: x + entry.offset.x,
+                    y: y + entry.offset.y,
+                    width: 1,
+                    height: 1,
+                    color: color.metalSIMD(alpha: alpha),
+                    scale: scale,
+                    drawableHeight: drawableHeight,
+                    vertices: &vertices
+                )
+
+            case .line(_, let x1, let y1, let x2, let y2, let stroke, let width, _):
+                appendVTGLine(
+                    from: VTGPoint(x: x1 + entry.offset.x, y: y1 + entry.offset.y),
+                    to: VTGPoint(x: x2 + entry.offset.x, y: y2 + entry.offset.y),
+                    width: width,
+                    color: stroke.metalSIMD(alpha: alpha),
+                    scale: scale,
+                    drawableHeight: drawableHeight,
+                    vertices: &vertices
+                )
+
+            case .draw(_, let points, let stroke, let width, _, _):
+                guard points.count > 1 else {
+                    continue
+                }
+                for index in 0..<(points.count - 1) {
+                    let start = points[index]
+                    let end = points[index + 1]
+                    appendVTGLine(
+                        from: VTGPoint(x: start.x + entry.offset.x, y: start.y + entry.offset.y),
+                        to: VTGPoint(x: end.x + entry.offset.x, y: end.y + entry.offset.y),
+                        width: width,
+                        color: stroke.metalSIMD(alpha: alpha),
+                        scale: scale,
+                        drawableHeight: drawableHeight,
+                        vertices: &vertices
+                    )
+                }
+
+            case .rect(_, let x, let y, let width, let height, let radius, _, let stroke, let fill, let lineWidth, _):
+                guard radius <= 0 else {
+                    continue
+                }
+                let adjustedX = x + entry.offset.x
+                let adjustedY = y + entry.offset.y
+                if let fill {
+                    appendVTGRect(
+                        x: adjustedX,
+                        y: adjustedY,
+                        width: width,
+                        height: height,
+                        color: fill.metalSIMD(alpha: alpha),
+                        scale: scale,
+                        drawableHeight: drawableHeight,
+                        vertices: &vertices
+                    )
+                }
+                if let stroke, lineWidth > 0 {
+                    let color = stroke.metalSIMD(alpha: alpha)
+                    appendVTGLine(
+                        from: VTGPoint(x: adjustedX, y: adjustedY),
+                        to: VTGPoint(x: adjustedX + width, y: adjustedY),
+                        width: lineWidth,
+                        color: color,
+                        scale: scale,
+                        drawableHeight: drawableHeight,
+                        vertices: &vertices
+                    )
+                    appendVTGLine(
+                        from: VTGPoint(x: adjustedX + width, y: adjustedY),
+                        to: VTGPoint(x: adjustedX + width, y: adjustedY + height),
+                        width: lineWidth,
+                        color: color,
+                        scale: scale,
+                        drawableHeight: drawableHeight,
+                        vertices: &vertices
+                    )
+                    appendVTGLine(
+                        from: VTGPoint(x: adjustedX + width, y: adjustedY + height),
+                        to: VTGPoint(x: adjustedX, y: adjustedY + height),
+                        width: lineWidth,
+                        color: color,
+                        scale: scale,
+                        drawableHeight: drawableHeight,
+                        vertices: &vertices
+                    )
+                    appendVTGLine(
+                        from: VTGPoint(x: adjustedX, y: adjustedY + height),
+                        to: VTGPoint(x: adjustedX, y: adjustedY),
+                        width: lineWidth,
+                        color: color,
+                        scale: scale,
+                        drawableHeight: drawableHeight,
+                        vertices: &vertices
+                    )
+                }
+
+            case .triangle(_, let p1, let p2, let p3, let radius, let stroke, let fill, let lineWidth, _):
+                guard radius <= 0 else {
+                    continue
+                }
+                let points = [
+                    VTGPoint(x: p1.x + entry.offset.x, y: p1.y + entry.offset.y),
+                    VTGPoint(x: p2.x + entry.offset.x, y: p2.y + entry.offset.y),
+                    VTGPoint(x: p3.x + entry.offset.x, y: p3.y + entry.offset.y)
+                ]
+                appendVTGTriangle(
+                    points: points,
+                    stroke: stroke?.metalSIMD(alpha: alpha),
+                    fill: fill?.metalSIMD(alpha: alpha),
+                    lineWidth: lineWidth,
+                    scale: scale,
+                    drawableHeight: drawableHeight,
+                    vertices: &vertices
+                )
+
+            case .circle(_, let cx, let cy, let radius, let stroke, let fill, let lineWidth):
+                appendVTGEllipse(
+                    center: VTGPoint(x: cx + entry.offset.x, y: cy + entry.offset.y),
+                    rx: radius,
+                    ry: radius,
+                    stroke: stroke?.metalSIMD(alpha: alpha),
+                    fill: fill?.metalSIMD(alpha: alpha),
+                    lineWidth: lineWidth,
+                    scale: scale,
+                    drawableHeight: drawableHeight,
+                    vertices: &vertices
+                )
+
+            case .ellipse(_, let cx, let cy, let rx, let ry, let stroke, let fill, let lineWidth):
+                appendVTGEllipse(
+                    center: VTGPoint(x: cx + entry.offset.x, y: cy + entry.offset.y),
+                    rx: rx,
+                    ry: ry,
+                    stroke: stroke?.metalSIMD(alpha: alpha),
+                    fill: fill?.metalSIMD(alpha: alpha),
+                    lineWidth: lineWidth,
+                    scale: scale,
+                    drawableHeight: drawableHeight,
+                    vertices: &vertices
+                )
+
+            default:
+                continue
+            }
+        }
+        return vertices
+    }
+
+    private func appendVTGTriangle(
+        points: [VTGPoint],
+        stroke: SIMD4<Float>?,
+        fill: SIMD4<Float>?,
+        lineWidth: Double,
+        scale: CGFloat,
+        drawableHeight: CGFloat,
+        vertices: inout [ColorVertex]
+    ) {
+        guard points.count == 3 else {
+            return
+        }
+        if let fill {
+            appendVTGTriangleFan(points: points, color: fill, scale: scale, drawableHeight: drawableHeight, vertices: &vertices)
+        }
+        if let stroke, lineWidth > 0 {
+            appendVTGClosedPolyline(points: points, width: lineWidth, color: stroke, scale: scale, drawableHeight: drawableHeight, vertices: &vertices)
+        }
+    }
+
+    private func appendVTGEllipse(
+        center: VTGPoint,
+        rx: Double,
+        ry: Double,
+        stroke: SIMD4<Float>?,
+        fill: SIMD4<Float>?,
+        lineWidth: Double,
+        scale: CGFloat,
+        drawableHeight: CGFloat,
+        vertices: inout [ColorVertex]
+    ) {
+        guard rx > 0, ry > 0 else {
+            return
+        }
+        let segmentCount = 48
+        let points = (0..<segmentCount).map { index in
+            let angle = (Double(index) / Double(segmentCount)) * Double.pi * 2
+            return VTGPoint(x: center.x + cos(angle) * rx, y: center.y + sin(angle) * ry)
+        }
+        if let fill {
+            appendVTGTriangleFan(points: [center] + points, color: fill, scale: scale, drawableHeight: drawableHeight, vertices: &vertices)
+        }
+        if let stroke, lineWidth > 0 {
+            appendVTGClosedPolyline(points: points, width: lineWidth, color: stroke, scale: scale, drawableHeight: drawableHeight, vertices: &vertices)
+        }
+    }
+
+    private func appendVTGTriangleFan(
+        points: [VTGPoint],
+        color: SIMD4<Float>,
+        scale: CGFloat,
+        drawableHeight: CGFloat,
+        vertices: inout [ColorVertex]
+    ) {
+        guard points.count >= 3 else {
+            return
+        }
+        let converted = points.map { point in
+            metalPoint(point, scale: scale, drawableHeight: drawableHeight)
+        }
+        for index in 1..<(converted.count - 1) {
+            vertices.append(contentsOf: [
+                ColorVertex(position: converted[0], color: color),
+                ColorVertex(position: converted[index], color: color),
+                ColorVertex(position: converted[index + 1], color: color)
+            ])
+        }
+    }
+
+    private func appendVTGClosedPolyline(
+        points: [VTGPoint],
+        width: Double,
+        color: SIMD4<Float>,
+        scale: CGFloat,
+        drawableHeight: CGFloat,
+        vertices: inout [ColorVertex]
+    ) {
+        guard points.count > 1 else {
+            return
+        }
+        for index in 0..<points.count {
+            appendVTGLine(
+                from: points[index],
+                to: points[(index + 1) % points.count],
+                width: width,
+                color: color,
+                scale: scale,
+                drawableHeight: drawableHeight,
+                vertices: &vertices
+            )
+        }
+    }
+
+    private func appendVTGRect(
+        x: Double,
+        y: Double,
+        width: Double,
+        height: Double,
+        color: SIMD4<Float>,
+        scale: CGFloat,
+        drawableHeight: CGFloat,
+        vertices: inout [ColorVertex]
+    ) {
+        guard width > 0, height > 0 else {
+            return
+        }
+        appendVTGQuad(
+            points: [
+                VTGPoint(x: x, y: y),
+                VTGPoint(x: x + width, y: y),
+                VTGPoint(x: x, y: y + height),
+                VTGPoint(x: x + width, y: y + height)
+            ],
+            color: color,
+            scale: scale,
+            drawableHeight: drawableHeight,
+            vertices: &vertices
+        )
+    }
+
+    private func appendVTGLine(
+        from start: VTGPoint,
+        to end: VTGPoint,
+        width: Double,
+        color: SIMD4<Float>,
+        scale: CGFloat,
+        drawableHeight: CGFloat,
+        vertices: inout [ColorVertex]
+    ) {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let length = sqrt(dx * dx + dy * dy)
+        guard length > 0, width > 0 else {
+            return
+        }
+        let half = width / 2
+        let nx = -dy / length * half
+        let ny = dx / length * half
+        appendVTGQuad(
+            points: [
+                VTGPoint(x: start.x + nx, y: start.y + ny),
+                VTGPoint(x: end.x + nx, y: end.y + ny),
+                VTGPoint(x: start.x - nx, y: start.y - ny),
+                VTGPoint(x: end.x - nx, y: end.y - ny)
+            ],
+            color: color,
+            scale: scale,
+            drawableHeight: drawableHeight,
+            vertices: &vertices
+        )
+    }
+
+    private func appendVTGQuad(
+        points: [VTGPoint],
+        color: SIMD4<Float>,
+        scale: CGFloat,
+        drawableHeight: CGFloat,
+        vertices: inout [ColorVertex]
+    ) {
+        guard points.count == 4 else {
+            return
+        }
+        let converted = points.map { point in
+            metalPoint(point, scale: scale, drawableHeight: drawableHeight)
+        }
+        vertices.append(contentsOf: [
+            ColorVertex(position: converted[0], color: color),
+            ColorVertex(position: converted[1], color: color),
+            ColorVertex(position: converted[2], color: color),
+            ColorVertex(position: converted[1], color: color),
+            ColorVertex(position: converted[3], color: color),
+            ColorVertex(position: converted[2], color: color)
+        ])
+    }
+
+    private func metalPoint(_ point: VTGPoint, scale: CGFloat, drawableHeight: CGFloat) -> SIMD2<Float> {
+        SIMD2<Float>(
+            Float(CGFloat(point.x) * scale),
+            Float(drawableHeight - (CGFloat(point.y) * scale))
+        )
+    }
+    #endif
+
+    private func drawFrameData(_ frame: FrameDrawData, encoder: MTLRenderCommandEncoder, viewport: SIMD2<Float>, scale: CGFloat) {
         drawCellBuffer(frame.backgroundCells,
                        pipeline: cellColorPipeline,
                        texture: nil,
@@ -1938,6 +2316,8 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
                        viewport: viewport)
 
         drawImageBatches(frame.underImageDraws, encoder: encoder, viewport: viewport)
+
+        drawVTGUnderTextPlaneIfNeeded(encoder: encoder, viewport: viewport, scale: scale)
 
         drawCellBuffer(frame.glyphCellsGray,
                        pipeline: cellTextGrayPipeline,
@@ -2748,4 +3128,17 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         return bundles
     }
 }
+
+#if os(macOS)
+private extension VTGColor {
+    func metalSIMD(alpha layerAlpha: Float) -> SIMD4<Float> {
+        SIMD4<Float>(
+            Float(red),
+            Float(green),
+            Float(blue),
+            Float(alpha) * layerAlpha
+        )
+    }
+}
+#endif
 #endif

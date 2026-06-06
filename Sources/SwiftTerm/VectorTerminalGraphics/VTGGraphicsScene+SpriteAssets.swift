@@ -2,10 +2,18 @@ import Foundation
 
 /// Sprite asset upload and removal helpers for the VTG scene.
 extension VTGGraphicsScene {
+    var uploadedSpriteAssetCount: Int {
+        spriteAssets.count + vectorSpriteAssets.count + indexedSpriteAssets.count
+    }
+
+    func hasUploadedSpriteAsset(id: String) -> Bool {
+        spriteAssets[id] != nil || vectorSpriteAssets[id] != nil || indexedSpriteAssets[id] != nil
+    }
+
     func uploadSprite(_ command: VectorTerminalGraphicsCommand) {
         guard let id = command.parameters["id"],
               Self.isValidIdentifier(id),
-              spriteAssets[id] != nil || vectorSpriteAssets[id] != nil || (spriteAssets.count + vectorSpriteAssets.count) < spriteAssetLimit,
+              hasUploadedSpriteAsset(id: id) || uploadedSpriteAssetCount < spriteAssetLimit,
               let payload = command.payload,
               let data = Data(base64Encoded: payload) else {
             return
@@ -20,20 +28,22 @@ extension VTGGraphicsScene {
             return
         }
         vectorSpriteAssets.removeValue(forKey: id)
+        indexedSpriteAssets.removeValue(forKey: id)
         spriteAssets[id] = VTGSpriteAsset(
             id: id,
             format: format == "jpg" ? "jpeg" : format,
             width: width,
             height: height,
             data: data,
-            base64: payload
+            base64: payload,
+            filter: command.spriteFilter()
         )
     }
 
     func uploadVectorSprite(_ command: VectorTerminalGraphicsCommand) {
         guard let id = command.parameters["id"],
               Self.isValidIdentifier(id),
-              vectorSpriteAssets[id] != nil || spriteAssets[id] != nil || (spriteAssets.count + vectorSpriteAssets.count) < spriteAssetLimit,
+              hasUploadedSpriteAsset(id: id) || uploadedSpriteAssetCount < spriteAssetLimit,
               let payload = command.payload,
               let commands = VTGPathParser.parse(payload),
               commands.isEmpty == false else {
@@ -45,6 +55,7 @@ extension VTGGraphicsScene {
             return
         }
         spriteAssets.removeValue(forKey: id)
+        indexedSpriteAssets.removeValue(forKey: id)
         vectorSpriteAssets[id] = VTGVectorSpriteAsset(
             id: id,
             width: width,
@@ -57,40 +68,69 @@ extension VTGGraphicsScene {
         )
     }
 
-    func removeSpriteAsset(id: String) {
-        spriteAssets.removeValue(forKey: id)
-        vectorSpriteAssets.removeValue(forKey: id)
-        var removedPrimitiveIDs: [String] = []
-        primitives.removeAll { primitive in
-            if case .sprite(_, let assetID, _, _, _, _, _, _) = primitive {
-                let shouldRemove = assetID == id
-                if shouldRemove {
-                    removedPrimitiveIDs.append(primitive.id)
-                }
-                return shouldRemove
-            }
-            return false
+    func uploadIndexedSprite(_ command: VectorTerminalGraphicsCommand) {
+        guard let id = command.parameters["id"],
+              Self.isValidIdentifier(id),
+              hasUploadedSpriteAsset(id: id) || uploadedSpriteAssetCount < spriteAssetLimit,
+              let payload = command.payload else {
+            return
         }
-        for primitiveID in removedPrimitiveIDs {
-            layersByID.removeValue(forKey: primitiveID)
+        let rawWidth = command.double("width", default: command.double("w"))
+        let rawHeight = command.double("height", default: command.double("h"))
+        guard rawWidth.isFinite, rawHeight.isFinite else {
+            return
         }
-        rebuildIndexes()
-    }
-
-    func removeAllSpriteAssets() {
-        spriteAssets.removeAll()
-        vectorSpriteAssets.removeAll()
-        var removedPrimitiveIDs: [String] = []
-        primitives.removeAll { primitive in
-            if case .sprite = primitive {
-                removedPrimitiveIDs.append(primitive.id)
+        let width = Int(rawWidth)
+        let height = Int(rawHeight)
+        guard width > 0, height > 0 else {
+            return
+        }
+        let palette = parseIndexedSpritePalette(command.parameters["palette"])
+        guard palette.isEmpty == false else {
+            return
+        }
+        let pixels = parseIndexedSpritePixels(payload)
+        guard pixels.count == width * height else {
+            return
+        }
+        let transparentIndex = command.parameters["transparent"].flatMap(Int.init)
+        let validPixels = pixels.allSatisfy { pixel in
+            if let transparentIndex, pixel == transparentIndex {
                 return true
             }
-            return false
+            return pixel >= 0 && pixel < palette.count
         }
-        for primitiveID in removedPrimitiveIDs {
-            layersByID.removeValue(forKey: primitiveID)
+        guard validPixels else {
+            return
         }
-        rebuildIndexes()
+        spriteAssets.removeValue(forKey: id)
+        vectorSpriteAssets.removeValue(forKey: id)
+        indexedSpriteAssets[id] = VTGIndexedSpriteAsset(
+            id: id,
+            width: width,
+            height: height,
+            palette: palette,
+            pixels: pixels,
+            transparentIndex: transparentIndex,
+            payload: payload,
+            filter: command.spriteFilter(default: .nearest)
+        )
+    }
+
+    private func parseIndexedSpritePalette(_ rawPalette: String?) -> [VTGColor] {
+        guard let rawPalette else {
+            return []
+        }
+        return rawPalette
+            .split(separator: "|")
+            .compactMap { VTGColor(hex: String($0)) }
+    }
+
+    private func parseIndexedSpritePixels(_ payload: String) -> [Int] {
+        payload
+            .split { character in
+                character == "," || character == " " || character == "\n" || character == "\r" || character == "\t"
+            }
+            .compactMap { Int($0) }
     }
 }

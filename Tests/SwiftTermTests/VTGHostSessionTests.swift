@@ -106,4 +106,65 @@ final class VTGHostSessionTests {
         #expect(publishedPrimitiveIDs.last == ["visible"])
         #expect(!session.controller.hasPendingFrame)
     }
+
+    @Test func visibleSceneAccessorsExposeOnlyCommittedCompositingPlanes() {
+        let session = VTGHostSession(
+            canvasProvider: { VTGCanvasSize(width: 100, height: 100) },
+            processRunning: { true },
+            sendResponse: { _ in },
+            sceneDidChange: { _ in }
+        )
+
+        _ = session.controller.process([
+            VectorTerminalGraphicsCommand(
+                name: "line",
+                parameters: [
+                    "id": "textPlane",
+                    "layer": "0",
+                    "x1": "0",
+                    "y1": "0",
+                    "x2": "10",
+                    "y2": "10"
+                ]
+            ),
+            VectorTerminalGraphicsCommand(
+                name: "rect",
+                parameters: [
+                    "id": "underText",
+                    "layer": "-1",
+                    "x": "0",
+                    "y": "0",
+                    "w": "20",
+                    "h": "20"
+                ]
+            ),
+            VectorTerminalGraphicsCommand(
+                name: "rect",
+                parameters: [
+                    "id": "overlay",
+                    "layer": "1",
+                    "x": "1",
+                    "y": "2",
+                    "w": "30",
+                    "h": "40"
+                ]
+            ),
+            VectorTerminalGraphicsCommand(name: "startFrame", parameters: ["id": "frame1"]),
+            VectorTerminalGraphicsCommand(
+                name: "circle",
+                parameters: [
+                    "id": "pending",
+                    "layer": "0",
+                    "cx": "5",
+                    "cy": "5",
+                    "r": "2"
+                ]
+            )
+        ], canvas: VTGCanvasSize(width: 100, height: 100))
+
+        #expect(session.visibleSceneSnapshot.primitives.map(\.id) == ["textPlane", "underText", "overlay"])
+        #expect(session.visiblePrimitives(in: .underText).map(\.id) == ["underText"])
+        #expect(session.visiblePrimitives(in: .textPlane).map(\.id) == ["textPlane"])
+        #expect(session.visiblePrimitives(in: .overlay).map(\.id) == ["overlay"])
+    }
 }

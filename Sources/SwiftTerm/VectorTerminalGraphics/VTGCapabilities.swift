@@ -30,8 +30,9 @@ public extension VTGResponseEncoder {
         "sprite"
     ]
 
-    static let defaultFormats = ["png", "jpeg"]
-    static let defaultSpriteFeatures = ["bitmap", "vector", "move", "rotate", "scale"]
+    static let defaultFormats = ["png", "jpeg", "indexed"]
+    static let defaultRasterFeatures = ["image", "filter"]
+    static let defaultSpriteFeatures = ["bitmap", "vector", "indexed", "move", "rotate", "scale", "filter"]
     static let defaultColors = ["hex-rgb", "hex-rgba"]
     static let defaultEvents = ["mouse", "resize", "frame"]
 
@@ -71,6 +72,7 @@ public extension VTGResponseEncoder {
         "cancelFrame",
         "spriteUpload",
         "vectorSpriteUpload",
+        "spriteDataUpload",
         "sprite",
         "spriteMove",
         "spriteRotate",

@@ -3,12 +3,15 @@ import Foundation
 /// Defines the VTG compositing layer contract shared by the parser, scene, and
 /// host response encoder.
 ///
-/// Layer 0 is reserved for the future text/graphics plane where VTG primitives
-/// can mingle with terminal cells. Layers 1 through 4 are overlay layers that
-/// render above the terminal and may scroll independently for parallax-style
-/// effects.
+/// Layer -1 is the under-text graphics plane. Layer 0 is reserved for the
+/// future true text/graphics plane where VTG primitives can mingle with
+/// terminal cells. Layers 1 through 4 are overlay layers that render above the
+/// terminal and may scroll independently for parallax-style effects.
 public enum VTGLayerModel {
-    /// Shared text/graphics plane reserved for Phase 10 renderer integration.
+    /// Graphics plane rendered beneath terminal glyphs.
+    public static let underTextLayer = -1
+
+    /// Shared text/graphics plane reserved for true Phase 10 mingling.
     public static let textPlaneLayer = 0
 
     /// First overlay layer. This is the default for current VTG drawing.
@@ -21,13 +24,13 @@ public enum VTGLayerModel {
     public static let defaultDrawingLayer = firstOverlayLayer
 
     /// All supported layer numbers.
-    public static let supportedRange = textPlaneLayer...lastOverlayLayer
+    public static let supportedRange = underTextLayer...lastOverlayLayer
 
     /// Layers that can be independently scrolled in the current overlay model.
     public static let scrollableRange = firstOverlayLayer...lastOverlayLayer
 
     /// Human-readable range advertised through `VTG;capabilities?`.
-    public static let advertisedRange = "\(textPlaneLayer)-\(lastOverlayLayer)"
+    public static let advertisedRange = "\(underTextLayer)-\(lastOverlayLayer)"
 
     /// Clamp an arbitrary wire value into the supported VTG layer range.
     public static func clamped(_ value: Int) -> Int {
@@ -38,6 +41,30 @@ public enum VTGLayerModel {
     public static func isScrollable(_ layer: Int) -> Bool {
         scrollableRange.contains(layer)
     }
+
+    /// Return whether the layer belongs to the under-text plane, future shared
+    /// text/graphics plane, or current overlay stack.
+    public static func compositingPlane(for layer: Int) -> VTGCompositingPlane {
+        switch layer {
+        case underTextLayer:
+            return .underText
+        case textPlaneLayer:
+            return .textPlane
+        default:
+            return .overlay
+        }
+    }
+}
+
+/// High-level VTG compositing buckets used by the retained scene.
+///
+/// This is intentionally smaller than the layer model. Layer `-1` is the
+/// renderer-integrated under-text plane, layer `0` is the future text/graphics
+/// mingling plane, and layers `1...4` are the overlay stack.
+public enum VTGCompositingPlane: Equatable {
+    case underText
+    case textPlane
+    case overlay
 }
 
 /// Pixel-space scroll offset for a VTG graphics layer.

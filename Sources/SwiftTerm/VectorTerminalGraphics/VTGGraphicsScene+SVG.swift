@@ -97,26 +97,22 @@ private extension VTGPrimitive {
         case .text(_, let x, let y, let value, let color, let size):
             return "<text x=\"\(svgNumber(x))\" y=\"\(svgNumber(y + size))\" fill=\"\(color.svgColor)\" fill-opacity=\"\(svgNumber(color.alpha))\" font-family=\"system-ui, sans-serif\" font-size=\"\(svgNumber(size))\">\(svgEscapedText(value))</text>"
 
-        case .image(_, let x, let y, let width, let height, let format, _, let base64):
+        case .image(_, let x, let y, let width, let height, let format, _, let base64, let filter):
             let mimeType = format.lowercased() == "jpg" ? "image/jpeg" : "image/\(format.lowercased())"
-            return "<image x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\" href=\"data:\(mimeType);base64,\(base64)\"/>"
+            let rendering = filter == .nearest ? " image-rendering=\"pixelated\"" : ""
+            return "<image x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\"\(rendering) href=\"data:\(mimeType);base64,\(base64)\"/>"
 
         case .sprite(_, let assetID, let x, let y, let rotation, let scale, let anchorX, let anchorY):
-            if let asset = scene.spriteAsset(id: assetID) {
-                let width = asset.width * scale
-                let height = asset.height * scale
-                let anchorScreenX = x + width * anchorX
-                let anchorScreenY = y + height * anchorY
-                let mimeType = asset.format.lowercased() == "jpg" ? "image/jpeg" : "image/\(asset.format.lowercased())"
-                return "<image x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\" href=\"data:\(mimeType);base64,\(asset.base64)\" transform=\"rotate(\(svgNumber(rotation)) \(svgNumber(anchorScreenX)) \(svgNumber(anchorScreenY)))\"/>"
-            }
-            guard let asset = scene.vectorSpriteAsset(id: assetID) else {
-                return ""
-            }
-            let anchorScreenX = x + asset.width * scale * anchorX
-            let anchorScreenY = y + asset.height * scale * anchorY
-            let transform = "translate(\(svgNumber(anchorScreenX)) \(svgNumber(anchorScreenY))) rotate(\(svgNumber(rotation))) scale(\(svgNumber(scale))) translate(\(svgNumber(-asset.width * anchorX)) \(svgNumber(-asset.height * anchorY)))"
-            return "<path d=\"\(asset.commands.svgPathData)\"\(svgFill(asset.fill))\(svgStroke(asset.stroke, width: asset.lineWidth)) transform=\"\(transform)\" data-anchor-x=\"\(svgNumber(anchorScreenX))\" data-anchor-y=\"\(svgNumber(anchorScreenY))\"/>"
+            return spriteSVGFragment(
+                assetID: assetID,
+                x: x,
+                y: y,
+                rotation: rotation,
+                scale: scale,
+                anchorX: anchorX,
+                anchorY: anchorY,
+                scene: scene
+            )
         }
     }
 }

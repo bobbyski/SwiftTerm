@@ -6,6 +6,7 @@ extension VTGGraphicsScene {
         primitives.removeAll()
         spriteAssets.removeAll()
         vectorSpriteAssets.removeAll()
+        indexedSpriteAssets.removeAll()
         indexesByID.removeAll()
         layersByID.removeAll()
         layerOffsets.removeAll()

@@ -22,7 +22,8 @@ extension VTGGraphicsScene {
             height: height,
             format: format,
             data: data,
-            base64: payload
+            base64: payload,
+            filter: command.spriteFilter()
         )
     }
 }

@@ -1,15 +1,16 @@
 import Foundation
 
-/// Retained scene model for VTG overlay primitives.
+/// Retained scene model for VTG graphics primitives.
 ///
 /// The terminal stream remains ANSI-compatible text. VTG commands update this
-/// side scene, and `VTGOverlayView` renders it on top of the terminal surface.
+/// side scene, and terminal renderers consume the parts they can support.
 public final class VTGGraphicsScene {
     public static let supportedLayerRange = VTGLayerModel.supportedRange
 
     public internal(set) var primitives: [VTGPrimitive] = []
     public internal(set) var spriteAssets: [String: VTGSpriteAsset] = [:]
     public internal(set) var vectorSpriteAssets: [String: VTGVectorSpriteAsset] = [:]
+    public internal(set) var indexedSpriteAssets: [String: VTGIndexedSpriteAsset] = [:]
     public internal(set) var defaultLayer = VTGLayerModel.defaultDrawingLayer
     public internal(set) var layersByID: [String: Int] = [:]
     public internal(set) var layerOffsets: [Int: VTGLayerOffset] = [:]
@@ -24,10 +25,10 @@ public final class VTGGraphicsScene {
 
     /// Primitives ordered by their current compositing layer.
     ///
-    /// Layer 0 is reserved for the future shared text/graphics plane. Until VTG
-    /// moves into SwiftTerm, all layers still render in the overlay view; this
-    /// ordering gives apps deterministic z-order without claiming layer 0 is
-    /// fully mingled with terminal text yet.
+    /// Layer -1 is under text, layer 0 is reserved for the future shared
+    /// text/graphics plane, and layers 1-4 are overlays. This ordering gives
+    /// apps deterministic z-order without claiming layer 0 is fully mingled
+    /// with terminal text yet.
     public init() {}
 
     public var renderPrimitives: [VTGPrimitive] {
@@ -41,6 +42,35 @@ public final class VTGGraphicsScene {
                 return leftLayer < rightLayer
             }
             .map(\.element)
+    }
+
+    /// Return primitives for one broad compositing plane while preserving the
+    /// same deterministic order as `renderPrimitives`.
+    ///
+    /// Current overlay rendering still draws every retained primitive in Metal
+    /// compatibility mode so demos keep behaving. Renderer-integrated spikes
+    /// consume this method to pull one compositing plane into the terminal
+    /// renderer without reinterpreting layer dictionaries themselves.
+    public func renderPrimitives(in plane: VTGCompositingPlane) -> [VTGPrimitive] {
+        renderPrimitives.filter { primitive in
+            VTGLayerModel.compositingPlane(for: layer(for: primitive)) == plane
+        }
+    }
+
+    /// Primitives assigned to layer -1, intended to render beneath glyphs.
+    public var underTextPrimitives: [VTGPrimitive] {
+        renderPrimitives(in: .underText)
+    }
+
+    /// Primitives assigned to layer 0, reserved for future true text/graphics
+    /// mingling.
+    public var textPlanePrimitives: [VTGPrimitive] {
+        renderPrimitives(in: .textPlane)
+    }
+
+    /// Primitives assigned to overlay layers `1...4`.
+    public var overlayPrimitives: [VTGPrimitive] {
+        renderPrimitives(in: .overlay)
     }
 
     /// Return a copy of the current retained scene state.
@@ -63,6 +93,7 @@ public final class VTGGraphicsScene {
         primitives = scene.primitives
         spriteAssets = scene.spriteAssets
         vectorSpriteAssets = scene.vectorSpriteAssets
+        indexedSpriteAssets = scene.indexedSpriteAssets
         defaultLayer = scene.defaultLayer
         layersByID = scene.layersByID
         layerOffsets = scene.layerOffsets
@@ -83,6 +114,11 @@ public final class VTGGraphicsScene {
     /// Return an uploaded vector sprite asset for renderers/exporters.
     public func vectorSpriteAsset(id: String) -> VTGVectorSpriteAsset? {
         vectorSpriteAssets[id]
+    }
+
+    /// Return an uploaded palette-indexed sprite asset for renderers/exporters.
+    public func indexedSpriteAsset(id: String) -> VTGIndexedSpriteAsset? {
+        indexedSpriteAssets[id]
     }
 
     func rebuildIndexes() {

@@ -133,6 +133,21 @@ open class VectorTerminalView: TerminalView {
         notifyVTGResizeIfNeeded(force: true)
     }
 
+    /// Draw committed VTG layer 0 primitives during SwiftTerm's CoreGraphics
+    /// terminal pass.
+    ///
+    /// Metal currently returns before this CoreGraphics hook. In Metal mode,
+    /// `VTGOverlayView` keeps drawing every layer so layer 0 remains visible
+    /// until the Metal renderer gets true mingled text-plane behavior. Metal's
+    /// current native VTG pass targets layer -1, the under-text plane.
+    open override func drawTerminalTextPlaneGraphics(dirtyRect: CGRect, context: CGContext) {
+        let scene = vtgSession.visibleSceneSnapshot
+        guard !scene.textPlanePrimitives.isEmpty else {
+            return
+        }
+        vtgOverlayView.draw(scene: scene, plane: .textPlane, in: context, bounds: bounds)
+    }
+
     private func setupVectorTerminalView() {
         vtgOverlayView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(vtgOverlayView, positioned: .above, relativeTo: nil)

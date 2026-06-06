@@ -19,7 +19,7 @@ final class VectorTerminalGraphicsParserShowcaseTests {
             (#"ESC _ VTG;curve,id=drawing-quad,kind=quadratic,x1=<n>,y1=<n>,cx=<n>,cy=<n>,x2=<n>,y2=<n>,stroke=#5eead4,width=5 ESC \"#, "curve"),
             (#"ESC _ VTG;curve,id=drawing-cubic,kind=cubic,x1=<n>,y1=<n>,c1x=<n>,c1y=<n>,c2x=<n>,c2y=<n>,x2=<n>,y2=<n>,stroke=#fb7185,width=5 ESC \"#, "curve"),
             (#"ESC _ VTG;path,id=drawing-path,stroke=#3b82f6,fill=#3b82f633,width=3;M ... L ... Q ... Z ESC \"#, "path"),
-            (#"ESC _ VTG;spriteUpload,id=galagaenemy,format=png,width=48,height=32;<base64> ESC \"#, "spriteUpload"),
+            (#"ESC _ VTG;spriteUpload,id=galagaenemy,format=png,width=48,height=32,filter=nearest;<base64> ESC \"#, "spriteUpload"),
             (#"ESC _ VTG;sprite,id=spriteenemy00,image=galagaenemy,x=<x>,y=<y>,rotation=0,scale=1 ESC \"#, "sprite"),
             (#"ESC _ VTG;vectorSpriteUpload,id=vectorship,width=42,height=34,stroke=#22c55e,fill=#22c55e33,lineWidth=2;M ... Z ESC \"#, "vectorSpriteUpload"),
             (#"ESC _ VTG;spriteTransform,id=spriteenemy00,x=<x>,y=<y>,rotation=<r>,scale=1.15 ESC \"#, "spriteTransform"),

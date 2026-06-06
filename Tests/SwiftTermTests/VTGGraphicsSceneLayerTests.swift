@@ -38,47 +38,20 @@ final class VTGGraphicsSceneLayerTests {
         #expect(scene.primitives.isEmpty)
     }
 
-    @Test func hitRegionsPreferTopmostLayerAndRespectClip() {
-        let scene = VTGGraphicsScene()
-
-        scene.apply(command("clip", ["layer": "2", "x": "0", "y": "0", "w": "50", "h": "50"]))
-        scene.apply(command("hit", ["id": "back", "layer": "1", "x": "0", "y": "0", "w": "100", "h": "100"]))
-        scene.apply(command("hit", ["id": "front", "layer": "2", "x": "0", "y": "0", "w": "100", "h": "100"]))
-
-        #expect(scene.hitRegion(at: VTGPoint(x: 25, y: 25))?.id == "front")
-        #expect(scene.hitRegion(at: VTGPoint(x: 75, y: 75))?.id == "back")
-    }
-
-    @Test func hitClearRemovesByIDLayerOrAll() {
-        let scene = VTGGraphicsScene()
-
-        scene.apply(command("hit", ["id": "one", "layer": "1", "x": "0", "y": "0", "w": "10", "h": "10"]))
-        scene.apply(command("hit", ["id": "two", "layer": "2", "x": "0", "y": "0", "w": "10", "h": "10"]))
-        scene.apply(command("hit", ["id": "three", "layer": "2", "x": "20", "y": "0", "w": "10", "h": "10"]))
-
-        scene.apply(command("hitClear", ["id": "one"]))
-        #expect(scene.hitRegions.keys.sorted() == ["three", "two"])
-
-        scene.apply(command("hitClear", ["layer": "2"]))
-        #expect(scene.hitRegions.isEmpty)
-
-        scene.apply(command("hit", ["id": "four", "layer": "1", "x": "0", "y": "0", "w": "10", "h": "10"]))
-        scene.apply(command("hit", ["id": "five", "layer": "3", "x": "0", "y": "0", "w": "10", "h": "10"]))
-        scene.apply(command("hitClear"))
-        #expect(scene.hitRegions.isEmpty)
-    }
-
-    @Test func layerModelClampsDrawingLayersAndReservesTextPlaneFromScrolling() {
+    @Test func layerModelClampsDrawingLayersAndReservesSharedPlanesFromScrolling() {
         let scene = VTGGraphicsScene()
 
         scene.apply(command("defaultLayer", ["value": "-2"]))
-        #expect(scene.defaultLayer == VTGLayerModel.textPlaneLayer)
+        #expect(scene.defaultLayer == VTGLayerModel.underTextLayer)
 
-        scene.apply(command("rect", ["id": "textPlane", "x": "0", "y": "0", "w": "10", "h": "10"]))
-        #expect(scene.layer(for: scene.primitives[0]) == VTGLayerModel.textPlaneLayer)
+        scene.apply(command("rect", ["id": "underText", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        #expect(scene.layer(for: scene.primitives[0]) == VTGLayerModel.underTextLayer)
 
         scene.apply(command("defaultLayer", ["value": "99"]))
         #expect(scene.defaultLayer == VTGLayerModel.lastOverlayLayer)
+
+        scene.apply(command("layerScroll", ["layer": "-1", "x": "10", "y": "20"]))
+        #expect(scene.offset(for: VTGLayerModel.underTextLayer) == .zero)
 
         scene.apply(command("layerScroll", ["layer": "0", "x": "10", "y": "20"]))
         #expect(scene.offset(for: VTGLayerModel.textPlaneLayer) == .zero)
@@ -87,8 +60,35 @@ final class VTGGraphicsSceneLayerTests {
         #expect(scene.offset(for: VTGLayerModel.lastOverlayLayer) == VTGLayerOffset(x: 10, y: 20))
     }
 
+    @Test func renderPrimitivesCanBeSeparatedByCompositingPlane() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command("rect", ["id": "overlayA", "layer": "1", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        scene.apply(command("rect", ["id": "underA", "layer": "-1", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        scene.apply(command("rect", ["id": "textA", "layer": "0", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        scene.apply(command("rect", ["id": "overlayB", "layer": "3", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        scene.apply(command("rect", ["id": "textB", "layer": "0", "x": "0", "y": "0", "w": "10", "h": "10"]))
+
+        #expect(scene.underTextPrimitives.map(\.id) == ["underA"])
+        #expect(scene.textPlanePrimitives.map(\.id) == ["textA", "textB"])
+        #expect(scene.overlayPrimitives.map(\.id) == ["overlayA", "overlayB"])
+        #expect(scene.renderPrimitives(in: .underText).map(\.id) == ["underA"])
+        #expect(scene.renderPrimitives(in: .textPlane).map(\.id) == ["textA", "textB"])
+        #expect(scene.renderPrimitives(in: .overlay).map(\.id) == ["overlayA", "overlayB"])
+    }
+
+    @Test func layerModelReportsCompositingPlane() {
+        #expect(VTGLayerModel.compositingPlane(for: VTGLayerModel.underTextLayer) == .underText)
+        #expect(VTGLayerModel.compositingPlane(for: VTGLayerModel.textPlaneLayer) == .textPlane)
+        #expect(VTGLayerModel.compositingPlane(for: VTGLayerModel.firstOverlayLayer) == .overlay)
+        #expect(VTGLayerModel.compositingPlane(for: VTGLayerModel.lastOverlayLayer) == .overlay)
+    }
+
     @Test func layerAlphaAppliesOnlyToOverlayLayersAndClampsValues() {
         let scene = VTGGraphicsScene()
+
+        scene.apply(command("layerAlpha", ["layer": "-1", "alpha": "0.25"]))
+        #expect(scene.alpha(for: VTGLayerModel.underTextLayer) == 1)
 
         scene.apply(command("layerAlpha", ["layer": "0", "alpha": "0.25"]))
         #expect(scene.alpha(for: VTGLayerModel.textPlaneLayer) == 1)

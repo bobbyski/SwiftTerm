@@ -39,29 +39,53 @@ public final class VTGOverlayView: NSView {
             return
         }
 
+        draw(scene: scene, plane: overlayCompositingPlane, in: context, bounds: bounds)
+    }
+
+    /// Draw retained VTG scene primitives into a caller-supplied Core Graphics
+    /// context.
+    ///
+    /// `plane == nil` draws every retained primitive. Passing `.underText`,
+    /// `.textPlane`, or `.overlay` lets terminal renderers and overlays split
+    /// the same scene without duplicating parser or scene-state logic.
+    public func draw(
+        scene: VTGGraphicsScene,
+        plane: VTGCompositingPlane?,
+        in context: CGContext,
+        bounds: CGRect
+    ) {
         context.saveGState()
-        for primitive in scene.renderPrimitives {
-            let layer = scene.layer(for: primitive)
-            let offset = scene.offset(for: layer)
+        let plan = scene.renderPlan(
+            plane: plane,
+            canvas: VTGRenderCanvas(width: bounds.width, height: bounds.height)
+        )
+        for entry in plan.entries {
             context.saveGState()
-            context.setAlpha(scene.alpha(for: layer))
-            if let clip = scene.clip(for: layer) {
+            context.setAlpha(entry.alpha)
+            if let clip = entry.clip {
                 context.clip(to: CGRect(x: clip.x, y: clip.y, width: clip.width, height: clip.height))
             }
-            if let viewport = scene.viewportTransform(
-                for: layer,
-                canvasWidth: bounds.width,
-                canvasHeight: bounds.height
-            ) {
+            if let viewport = entry.viewport {
                 context.clip(to: CGRect(x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height))
                 context.translateBy(x: viewport.x, y: viewport.y)
                 context.scaleBy(x: viewport.scaleX, y: viewport.scaleY)
             }
-            context.translateBy(x: offset.x, y: offset.y)
-            drawPrimitive(primitive, in: context, scene: scene)
+            context.translateBy(x: entry.offset.x, y: entry.offset.y)
+            drawPrimitive(entry.primitive, in: context, scene: scene)
             context.restoreGState()
         }
         context.restoreGState()
+    }
+
+    private var overlayCompositingPlane: VTGCompositingPlane? {
+        guard let terminalView = superview as? TerminalView else {
+            return nil
+        }
+        #if canImport(MetalKit)
+        return terminalView.rendererMode == .metal ? nil : .overlay
+        #else
+        return .overlay
+        #endif
     }
 }
 #endif

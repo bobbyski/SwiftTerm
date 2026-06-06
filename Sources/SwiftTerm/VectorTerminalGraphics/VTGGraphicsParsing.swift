@@ -43,6 +43,14 @@ extension VectorTerminalGraphicsCommand {
     func lineJoin() -> VTGLineJoin? {
         parameters["lineJoin"].flatMap(VTGLineJoin.init(rawValue:))
     }
+
+    /// Parse an optional sprite sampling hint.
+    ///
+    /// Unknown values fall back to `smooth`, keeping old clients and typo-prone
+    /// command streams from changing renderer behavior unexpectedly.
+    func spriteFilter(default defaultValue: VTGSpriteFilter = .smooth) -> VTGSpriteFilter {
+        parameters["filter"].flatMap(VTGSpriteFilter.init(rawValue:)) ?? defaultValue
+    }
 }
 
 extension VTGColor {

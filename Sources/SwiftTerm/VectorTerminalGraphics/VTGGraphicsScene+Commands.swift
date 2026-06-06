@@ -59,6 +59,8 @@ extension VTGGraphicsScene {
             uploadSprite(command)
         case "vectorSpriteUpload":
             uploadVectorSprite(command)
+        case "spriteDataUpload":
+            uploadIndexedSprite(command)
         case "sprite":
             upsert(parseSprite(command), command: command)
         case "spriteMove":

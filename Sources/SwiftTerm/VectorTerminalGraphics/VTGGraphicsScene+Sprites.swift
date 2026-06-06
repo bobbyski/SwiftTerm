@@ -6,7 +6,7 @@ extension VTGGraphicsScene {
         guard let id = command.parameters["id"],
               Self.isValidIdentifier(id),
               let assetID = command.parameters["image"] ?? command.parameters["asset"],
-              spriteAssets[assetID] != nil || vectorSpriteAssets[assetID] != nil else {
+              hasUploadedSpriteAsset(id: assetID) else {
             return nil
         }
         return .sprite(

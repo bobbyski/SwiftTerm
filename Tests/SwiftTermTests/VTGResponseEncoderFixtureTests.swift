@@ -65,9 +65,11 @@ final class VTGResponseEncoderFixtureTests {
         case "image":
             return "image,id=dog,format=png,x=10,y=20,width=100,height=80;base64-payload"
         case "spriteUpload":
-            return "spriteUpload,id=enemy,format=png,width=32,height=24;base64-payload"
+            return "spriteUpload,id=enemy,format=png,width=32,height=24,filter=nearest;base64-payload"
         case "vectorSpriteUpload":
             return "vectorSpriteUpload,id=ship,width=64,height=64;M 0 0 L 64 32 L 0 64 Z"
+        case "spriteDataUpload":
+            return "spriteDataUpload,id=basicship,width=4,height=2,palette=#000000|#5eead4|#fb7185,transparent=0,filter=nearest;0,1,2,0,1,2,1,0"
         case "sprite":
             return "sprite,id=enemy1,image=enemy,x=10,y=20,rotation=45,scale=1.25,anchorX=0.5,anchorY=0.75,layer=2"
         case "spriteMove":

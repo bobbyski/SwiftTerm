@@ -15,7 +15,7 @@ public enum VTGPrimitive: Equatable {
     case circle(id: String, cx: Double, cy: Double, radius: Double, stroke: VTGColor?, fill: VTGColor?, lineWidth: Double)
     case ellipse(id: String, cx: Double, cy: Double, rx: Double, ry: Double, stroke: VTGColor?, fill: VTGColor?, lineWidth: Double)
     case text(id: String, x: Double, y: Double, value: String, color: VTGColor, size: Double)
-    case image(id: String, x: Double, y: Double, width: Double, height: Double, format: String, data: Data, base64: String)
+    case image(id: String, x: Double, y: Double, width: Double, height: Double, format: String, data: Data, base64: String, filter: VTGSpriteFilter)
     case sprite(id: String, assetID: String, x: Double, y: Double, rotation: Double, scale: Double, anchorX: Double, anchorY: Double)
 
     public var id: String {
@@ -30,7 +30,7 @@ public enum VTGPrimitive: Equatable {
              .circle(let id, _, _, _, _, _, _),
              .ellipse(let id, _, _, _, _, _, _, _),
              .text(let id, _, _, _, _, _),
-             .image(let id, _, _, _, _, _, _, _),
+             .image(let id, _, _, _, _, _, _, _, _),
              .sprite(let id, _, _, _, _, _, _, _):
             return id
         }

@@ -38,6 +38,25 @@ public final class VTGHostSession {
         controller.mouseMode
     }
 
+    /// Snapshot of the currently visible retained VTG scene.
+    ///
+    /// This is intended for embedders and future terminal-renderer integration
+    /// that need to inspect scene state without mutating the controller-owned
+    /// visible scene. Pending offscreen frames are intentionally excluded until
+    /// they are committed through `endFrame`.
+    public var visibleSceneSnapshot: VTGGraphicsScene {
+        controller.scene.makeSnapshot()
+    }
+
+    /// Return currently visible primitives for one compositing plane.
+    ///
+    /// This small read API keeps renderer spikes from reaching into the
+    /// controller's scene internals. Layer -1 maps to `.underText`, layer 0
+    /// maps to `.textPlane`, and overlay layers map to `.overlay`.
+    public func visiblePrimitives(in plane: VTGCompositingPlane) -> [VTGPrimitive] {
+        controller.scene.renderPrimitives(in: plane)
+    }
+
     /// Process a SwiftTerm private sequence and send any immediate responses.
     @discardableResult
     public func handlePrivateSequence(_ sequence: TerminalPrivateSequence) -> Bool {

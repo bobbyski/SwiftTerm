@@ -95,6 +95,53 @@ final class VTGGraphicsSceneSVGTests {
         #expect(svg.contains("stroke-linejoin=\"bevel\""))
     }
 
+    @Test func exportsIndexedSpritePixels() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command(
+            "spriteDataUpload",
+            ["id": "basicship", "width": "2", "height": "2", "palette": "#000000|#5eead4", "transparent": "0", "filter": "nearest"],
+            payload: "0,1,1,0"
+        ))
+        scene.apply(command("sprite", ["id": "ship1", "image": "basicship", "x": "10", "y": "20", "scale": "3"]))
+
+        let svg = scene.makeSVGFragment()
+
+        #expect(svg.contains("data-indexed-sprite=\"basicship\""))
+        #expect(svg.contains("shape-rendering=\"crispEdges\""))
+        #expect(svg.contains("scale(3)"))
+        #expect(svg.contains("<rect x=\"1\" y=\"0\" width=\"1\" height=\"1\" fill=\"#5EEAD4\""))
+        #expect(svg.contains("<rect x=\"0\" y=\"1\" width=\"1\" height=\"1\" fill=\"#5EEAD4\""))
+    }
+
+    @Test func exportsBitmapSpriteFilterHint() {
+        let scene = VTGGraphicsScene()
+        let payload = Data([1]).base64EncodedString()
+
+        scene.apply(command("spriteUpload", ["id": "pixelship", "format": "png", "width": "2", "height": "2", "filter": "nearest"], payload: payload))
+        scene.apply(command("sprite", ["id": "ship1", "image": "pixelship", "x": "10", "y": "20", "scale": "3"]))
+
+        let svg = scene.makeSVGFragment()
+
+        #expect(svg.contains("image-rendering=\"pixelated\""))
+    }
+
+    @Test func exportsDirectImageFilterHint() {
+        let scene = VTGGraphicsScene()
+        let payload = Data([1, 2, 3]).base64EncodedString()
+
+        scene.apply(command(
+            "image",
+            ["id": "retro", "format": "png", "x": "1", "y": "2", "width": "3", "height": "4", "filter": "nearest"],
+            payload: payload
+        ))
+
+        let svg = scene.makeSVGFragment()
+
+        #expect(svg.contains("<image x=\"1\" y=\"2\" width=\"3\" height=\"4\" image-rendering=\"pixelated\""))
+        #expect(svg.contains("href=\"data:image/png;base64,\(payload)\""))
+    }
+
     private func command(
         _ name: String,
         _ parameters: [String: String] = [:],

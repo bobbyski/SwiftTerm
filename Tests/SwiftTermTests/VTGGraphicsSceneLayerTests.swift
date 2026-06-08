@@ -106,11 +106,17 @@ final class VTGGraphicsSceneLayerTests {
     @Test func layerClipCanBeSetClearedAndIgnoresInvalidSizes() {
         let scene = VTGGraphicsScene()
 
+        scene.apply(command("clip", ["layer": "-1", "x": "1", "y": "2", "w": "30", "h": "40"]))
+        #expect(scene.clip(for: VTGLayerModel.underTextLayer) == VTGLayerClip(x: 1, y: 2, width: 30, height: 40))
+
         scene.apply(command("clip", ["layer": "2", "x": "10", "y": "20", "w": "100", "h": "50"]))
         #expect(scene.clip(for: 2) == VTGLayerClip(x: 10, y: 20, width: 100, height: 50))
 
         scene.apply(command("clip", ["layer": "3", "x": "0", "y": "0", "w": "0", "h": "50"]))
         #expect(scene.clip(for: 3) == nil)
+
+        scene.apply(command("clipClear", ["layer": "-1"]))
+        #expect(scene.clip(for: VTGLayerModel.underTextLayer) == nil)
 
         scene.apply(command("clipClear", ["layer": "2"]))
         #expect(scene.clip(for: 2) == nil)

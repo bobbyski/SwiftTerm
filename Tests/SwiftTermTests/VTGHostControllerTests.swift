@@ -25,6 +25,18 @@ final class VTGHostControllerTests {
         #expect(controller.scene.primitives.count == 1)
     }
 
+    @Test func capabilitiesResponseCanAdvertiseHostRenderer() {
+        let controller = VTGHostController()
+        let responses = controller.process(
+            [command("capabilities?")],
+            canvas: VTGCanvasSize(width: 640, height: 480),
+            renderer: "metal"
+        )
+
+        #expect(responses.count == 1)
+        #expect(responses.first?.contains("renderer=metal") == true)
+    }
+
     @Test func resizeResponsesHonorSubscriptionAndDeduplicate() {
         let controller = VTGHostController()
         let canvas = VTGCanvasSize(width: 100, height: 80)

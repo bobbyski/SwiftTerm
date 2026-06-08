@@ -23,11 +23,12 @@ extension VTGHostController {
 
     func responsesForCommand(
         _ command: VectorTerminalGraphicsCommand,
-        canvas: VTGCanvasSize
+        canvas: VTGCanvasSize,
+        renderer: String = "overlay"
     ) -> [String] {
         switch command.name {
         case "capabilities?":
-            return [VTGResponseEncoder.capabilities(canvas: canvas)]
+            return [VTGResponseEncoder.capabilities(canvas: canvas, renderer: renderer)]
         case "canvas?":
             return [VTGResponseEncoder.canvasResponse(commandName: "canvas", canvas: canvas)]
         case "size?":

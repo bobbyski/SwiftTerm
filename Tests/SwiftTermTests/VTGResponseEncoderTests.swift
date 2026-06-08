@@ -18,12 +18,23 @@ final class VTGResponseEncoderTests {
         #expect(response.contains("commands=begin|present|clear|delete|capabilities?|canvas?|size?|resizeEvents|mouseEvents|defaultLayer|layer|layerScroll|layerAlpha|viewportMode|viewportScale|clip|clipClear|hit|hitClear|pixel|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|startFrame|endFrame|cancelFrame|spriteUpload|vectorSpriteUpload|spriteDataUpload|sprite|spriteMove|spriteRotate|spriteAnchor|spriteTransform|spriteRemove|spriteClear"))
         #expect(response.contains("planned="))
         #expect(response.contains("primitives=pixel|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|sprite"))
+        #expect(response.contains("underText=pixel|line|draw|curve|triangle|path|rect|circle|ellipse"))
         #expect(response.contains("raster=image|filter"))
         #expect(response.contains("sprites=bitmap|vector|indexed|move|rotate|scale|filter"))
         #expect(response.contains("layers=-1-4"))
+        #expect(response.contains("textPlane=reserved"))
         #expect(response.contains("layerAlpha=1-4"))
         #expect(response.contains("events=mouse|resize|frame"))
         #expect(response.hasSuffix("\u{1B}\\"))
+    }
+
+    @Test func encodesHostRendererInCapabilitiesResponse() {
+        let response = VTGResponseEncoder.capabilities(
+            canvas: VTGCanvasSize(width: 800, height: 600),
+            renderer: "metal"
+        )
+
+        #expect(response.contains("renderer=metal"))
     }
 
     @Test func encodesCanvasAndResizeResponses() {

@@ -31,6 +31,9 @@ open class VectorTerminalView: TerminalView {
             }
             return self.currentVTGCanvas()
         },
+        rendererProvider: { [weak self] in
+            self?.currentVTGRendererName() ?? "overlay"
+        },
         processRunning: { [weak self] in
             self?.vtgProcessRunningForResponses() == true
         },
@@ -72,6 +75,23 @@ open class VectorTerminalView: TerminalView {
     /// Feed VTG bytes from an in-process SDK transport.
     public func feedVTG(_ bytes: [UInt8]) {
         feed(byteArray: bytes[...])
+    }
+
+    /// Renderer name advertised through `VTG;capabilities?`.
+    ///
+    /// The value is intentionally a small string instead of exposing
+    /// SwiftTerm's renderer enum on the wire. Existing clients already parse
+    /// flat capability fields, and unknown renderer strings should be treated
+    /// as informational.
+    public func currentVTGRendererName() -> String {
+        switch rendererMode {
+        case .coreGraphics:
+            return "coreGraphics"
+        case .metal:
+            return "metal"
+        case .svg:
+            return "svg"
+        }
     }
 
     /// Temporarily disable host-generated VTG responses.
@@ -136,10 +156,9 @@ open class VectorTerminalView: TerminalView {
     /// Draw committed VTG layer 0 primitives during SwiftTerm's CoreGraphics
     /// terminal pass.
     ///
-    /// Metal currently returns before this CoreGraphics hook. In Metal mode,
-    /// `VTGOverlayView` keeps drawing every layer so layer 0 remains visible
-    /// until the Metal renderer gets true mingled text-plane behavior. Metal's
-    /// current native VTG pass targets layer -1, the under-text plane.
+    /// Metal bypasses this CoreGraphics hook. Its renderer has a narrow native
+    /// layer-0 spike for the vector subset that already works in the Metal VTG
+    /// primitive pipeline, while richer layer-0 behavior remains reserved.
     open override func drawTerminalTextPlaneGraphics(dirtyRect: CGRect, context: CGContext) {
         let scene = vtgSession.visibleSceneSnapshot
         guard !scene.textPlanePrimitives.isEmpty else {

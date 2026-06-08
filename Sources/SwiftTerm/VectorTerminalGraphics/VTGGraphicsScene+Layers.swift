@@ -28,7 +28,7 @@ extension VTGGraphicsScene {
 
     func setLayerClip(_ command: VectorTerminalGraphicsCommand) {
         let layer = command.layerValue(default: defaultLayer)
-        guard layer >= 0 else {
+        guard VTGLayerModel.supportedRange.contains(layer) else {
             return
         }
         let width = command.double("w", default: command.double("width"))

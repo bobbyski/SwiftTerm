@@ -47,6 +47,23 @@ final class VTGGraphicsSceneRenderPlanTests {
         #expect(entry.viewport == nil)
     }
 
+    @Test func underTextRenderPlanIncludesClip() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command("rect", ["id": "native-under", "layer": "-1", "x": "0", "y": "0", "w": "10", "h": "10"]))
+        scene.apply(command("clip", ["layer": "-1", "x": "20", "y": "30", "w": "120", "h": "90"]))
+
+        let entry = scene.renderPlan(
+            plane: .underText,
+            canvas: VTGRenderCanvas(width: 800, height: 600)
+        ).entries[0]
+
+        #expect(entry.primitive.id == "native-under")
+        #expect(entry.layer == VTGLayerModel.underTextLayer)
+        #expect(entry.clip == VTGLayerClip(x: 20, y: 30, width: 120, height: 90))
+        #expect(entry.viewport == nil)
+    }
+
     @Test func renderPlanIncludesFixedViewportTransform() {
         let scene = VTGGraphicsScene()
 

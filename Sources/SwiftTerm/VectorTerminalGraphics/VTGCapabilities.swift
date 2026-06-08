@@ -30,6 +30,23 @@ public extension VTGResponseEncoder {
         "sprite"
     ]
 
+    /// Primitives currently implemented by the native under-text Metal pass.
+    ///
+    /// This is intentionally narrower than `defaultPrimitives`. Overlay layers
+    /// support the full retained primitive set, while layer `-1` only supports
+    /// shapes that can be emitted by the Metal primitive helper today.
+    static let defaultUnderTextPrimitives = [
+        "pixel",
+        "line",
+        "draw",
+        "curve",
+        "triangle",
+        "path",
+        "rect",
+        "circle",
+        "ellipse"
+    ]
+
     static let defaultFormats = ["png", "jpeg", "indexed"]
     static let defaultRasterFeatures = ["image", "filter"]
     static let defaultSpriteFeatures = ["bitmap", "vector", "indexed", "move", "rotate", "scale", "filter"]

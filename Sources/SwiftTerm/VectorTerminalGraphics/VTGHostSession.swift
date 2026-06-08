@@ -10,6 +10,7 @@ public final class VTGHostSession {
     public let controller: VTGHostController
 
     public var canvasProvider: () -> VTGCanvasSize
+    public var rendererProvider: () -> String
     public var processRunning: () -> Bool
     public var sendResponse: (String) -> Void
     public var sceneDidChange: (VTGGraphicsScene) -> Void
@@ -17,12 +18,14 @@ public final class VTGHostSession {
     public init(
         controller: VTGHostController = VTGHostController(),
         canvasProvider: @escaping () -> VTGCanvasSize,
+        rendererProvider: @escaping () -> String = { "overlay" },
         processRunning: @escaping () -> Bool,
         sendResponse: @escaping (String) -> Void,
         sceneDidChange: @escaping (VTGGraphicsScene) -> Void
     ) {
         self.controller = controller
         self.canvasProvider = canvasProvider
+        self.rendererProvider = rendererProvider
         self.processRunning = processRunning
         self.sendResponse = sendResponse
         self.sceneDidChange = sceneDidChange
@@ -62,7 +65,8 @@ public final class VTGHostSession {
     public func handlePrivateSequence(_ sequence: TerminalPrivateSequence) -> Bool {
         guard let responses = controller.handlePrivateSequence(
             sequence,
-            canvas: canvasProvider()
+            canvas: canvasProvider(),
+            renderer: rendererProvider()
         ) else {
             return false
         }

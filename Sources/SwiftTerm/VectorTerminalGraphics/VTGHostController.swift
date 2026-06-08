@@ -40,25 +40,27 @@ public final class VTGHostController {
     /// it was VTG but produced no immediate host response.
     public func handlePrivateSequence(
         _ sequence: TerminalPrivateSequence,
-        canvas: VTGCanvasSize
+        canvas: VTGCanvasSize,
+        renderer: String = "overlay"
     ) -> [String]? {
         guard let command = parser.command(from: sequence) else {
             return nil
         }
-        return process([command], canvas: canvas)
+        return process([command], canvas: canvas, renderer: renderer)
     }
 
     /// Apply parsed VTG commands and return immediate host responses.
     public func process(
         _ commands: [VectorTerminalGraphicsCommand],
-        canvas: VTGCanvasSize
+        canvas: VTGCanvasSize,
+        renderer: String = "overlay"
     ) -> [String] {
         var responses: [String] = []
         for command in commands {
             if let timeoutResponse = expirePendingFrameIfNeeded() {
                 responses.append(timeoutResponse)
             }
-            responses.append(contentsOf: responsesForCommand(command, canvas: canvas))
+            responses.append(contentsOf: responsesForCommand(command, canvas: canvas, renderer: renderer))
             let frameResult = handleFrameCommand(command)
             if let frameResponse = frameResult.response {
                 responses.append(frameResponse)

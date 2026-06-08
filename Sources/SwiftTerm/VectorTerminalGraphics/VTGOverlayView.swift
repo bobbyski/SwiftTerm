@@ -78,14 +78,7 @@ public final class VTGOverlayView: NSView {
     }
 
     private var overlayCompositingPlane: VTGCompositingPlane? {
-        guard let terminalView = superview as? TerminalView else {
-            return nil
-        }
-        #if canImport(MetalKit)
-        return terminalView.rendererMode == .metal ? nil : .overlay
-        #else
         return .overlay
-        #endif
     }
 }
 #endif

@@ -12,7 +12,7 @@ final class VTGResponseEncoderTests {
         #expect(response.hasPrefix("\u{1B}_VTG;capabilities,"))
         #expect(response.contains("protocol=VTG"))
         #expect(response.contains("schema=vtg.capabilities.v1"))
-        #expect(response.contains("version=0.1"))
+        #expect(response.contains("version=1.1.0"))
         #expect(response.contains("canvasWidth=800"))
         #expect(response.contains("canvasHeight=600"))
         #expect(response.contains("commands=begin|present|clear|delete|capabilities?|canvas?|size?|resizeEvents|mouseEvents|defaultLayer|layer|layerScroll|layerAlpha|viewportMode|viewportScale|clip|clipClear|hit|hitClear|pixel|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|startFrame|endFrame|cancelFrame|spriteUpload|vectorSpriteUpload|spriteDataUpload|sprite|spriteMove|spriteRotate|spriteAnchor|spriteTransform|spriteRemove|spriteClear"))

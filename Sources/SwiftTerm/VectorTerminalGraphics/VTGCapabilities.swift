@@ -5,7 +5,7 @@ public extension VTGResponseEncoder {
     static let protocolName = "VTG"
 
     /// Version of the VTG command protocol advertised to child processes.
-    static let version = "0.1"
+    static let version = "1.1.0"
 
     /// Versioned shape of the `capabilities` response fields.
     ///

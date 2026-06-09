@@ -96,6 +96,14 @@ extension TerminalView {
     }
 #endif
 
+    /// Hook for subclasses that need to draw retained graphics in the terminal
+    /// text plane.
+    ///
+    /// Plain `TerminalView` intentionally does nothing. VTG-capable subclasses
+    /// can override this during the CoreGraphics renderer pass to draw layer 0
+    /// graphics without changing the behavior of existing SwiftTerm embedders.
+    @objc open func drawTerminalTextPlaneGraphics(dirtyRect: CGRect, context: CGContext) {}
+
     /// Multiplier for vertical line spacing. 1.0 = default (ascent + descent + leading).
     /// Set to 1.1 for 110% vertical spacing (matches iTerm2's vertical spacing setting).
     /// Triggers a font reset and terminal resize when changed.
@@ -1568,6 +1576,8 @@ extension TerminalView {
         }
 #endif
         
+        drawTerminalTextPlaneGraphics(dirtyRect: dirtyRect, context: context)
+
 #if os(iOS) || os(visionOS)
         if selection.active {
             let start, end: Position

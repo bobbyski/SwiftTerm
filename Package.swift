@@ -80,6 +80,8 @@ let targets: [Target] = [
 //        ],
         path: "Sources/SwiftTerm",
         exclude: platformExcludes + ["Mac/README.md"],
+        // VTG files live under Sources/SwiftTerm/VectorTerminalGraphics and are
+        // discovered with the rest of the target sources.
         resources: [
             .process("Apple/Metal/Shaders.metal")
         ]

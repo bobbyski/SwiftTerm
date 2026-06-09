@@ -73,6 +73,11 @@ testing, and screen-scraping terminal output.
 - ``LocalProcessTerminalView``
 - ``LocalProcessTerminalViewDelegate``
 
+### Vector Graphics Terminal Views
+
+- ``VectorTerminalView``
+- ``LocalProcessVectorTerminalView``
+
 ### Headless Usage
 
 - <doc:HeadlessUsage>

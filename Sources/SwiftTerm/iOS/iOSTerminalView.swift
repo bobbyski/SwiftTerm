@@ -202,6 +202,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     var metalRenderer: MetalTerminalRenderer?
     var pendingMetalDisplay: Bool = false
     private var useMetalRenderer = false
+    private var useSVGRenderer = false
     var metalDirtyRange: ClosedRange<Int>?
 
     /// Whether the terminal view is currently using the Metal GPU renderer.
@@ -210,6 +211,14 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     /// `true`, and `false` otherwise.
     public var isUsingMetalRenderer: Bool {
         return useMetalRenderer
+    }
+
+    /// The currently active terminal renderer mode.
+    public var rendererMode: TerminalRendererMode {
+        if useSVGRenderer {
+            return .svg
+        }
+        return useMetalRenderer ? .metal : .coreGraphics
     }
 #endif
     var cellDimension: CellDimension
@@ -362,6 +371,27 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         } else {
             try updateMetalRenderer(enabled: false)
             useMetalRenderer = false
+        }
+    }
+
+    /// Selects the terminal renderer by mode.
+    ///
+    /// This preserves the existing CoreGraphics/Metal implementation and keeps
+    /// `setUseMetal(_:)` as the compatibility API. SVG mode currently enables
+    /// the experimental SVG snapshot/export surface without replacing the live
+    /// platform renderer.
+    public func setRendererMode(_ mode: TerminalRendererMode) throws {
+        switch mode {
+        case .coreGraphics:
+            useSVGRenderer = false
+            try setUseMetal(false)
+        case .metal:
+            useSVGRenderer = false
+            try setUseMetal(true)
+        case .svg:
+            try setUseMetal(false)
+            useSVGRenderer = true
+            setNeedsDisplay(bounds)
         }
     }
 

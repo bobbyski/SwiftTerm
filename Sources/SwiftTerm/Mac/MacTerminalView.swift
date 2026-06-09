@@ -131,6 +131,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     /// Experimental GPU path: CoreText glyph atlas + Metal quads.
     /// Limitations: image caching is basic; GPU path is still evolving.
     private var useMetalRenderer = false
+    private var useSVGRenderer = false
     var metalDirtyRange: ClosedRange<Int>?
     var pendingMetalDisplay: Bool = false
     /// Controls how the Metal renderer builds GPU buffers each frame.
@@ -150,6 +151,14 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     /// `true`, and `false` otherwise.
     public var isUsingMetalRenderer: Bool {
         return useMetalRenderer
+    }
+
+    /// The currently active terminal renderer mode.
+    public var rendererMode: TerminalRendererMode {
+        if useSVGRenderer {
+            return .svg
+        }
+        return useMetalRenderer ? .metal : .coreGraphics
     }
 #endif
 
@@ -273,6 +282,27 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         } else {
             try updateMetalRenderer(enabled: false)
             useMetalRenderer = false
+        }
+    }
+
+    /// Selects the terminal renderer by mode.
+    ///
+    /// This preserves the existing CoreGraphics/Metal implementation and keeps
+    /// `setUseMetal(_:)` as the compatibility API. SVG mode currently enables
+    /// the experimental SVG snapshot/export surface without replacing the live
+    /// platform renderer.
+    public func setRendererMode(_ mode: TerminalRendererMode) throws {
+        switch mode {
+        case .coreGraphics:
+            useSVGRenderer = false
+            try setUseMetal(false)
+        case .metal:
+            useSVGRenderer = false
+            try setUseMetal(true)
+        case .svg:
+            try setUseMetal(false)
+            useSVGRenderer = true
+            needsDisplay = true
         }
     }
 

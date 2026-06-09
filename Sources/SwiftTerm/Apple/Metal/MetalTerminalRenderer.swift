@@ -181,6 +181,9 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
     private static let profileLog = OSLog(subsystem: "org.tirania.SwiftTerm", category: "MetalProfile")
     private static let profileEnabled = ProcessInfo.processInfo.environment["SWIFTTERM_PROFILE"] == "1"
 #endif
+#if DEBUG
+    private static let fpsLoggingEnabled = ProcessInfo.processInfo.environment["SWIFTTERM_METAL_FPS"] == "1"
+#endif
     private weak var terminalView: TerminalView?
     private weak var view: MTKView?
     private let device: MTLDevice
@@ -375,15 +378,17 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         }
 #endif
 #if DEBUG
-        debugFrameCount += 1
-        let now = CFAbsoluteTimeGetCurrent()
-        let elapsed = now - debugLastLogTime
-        if elapsed >= 1.0 {
-            let totalRows = debugRowsRebuilt + debugRowsCached
-            let fps = Double(debugFrameCount) / elapsed
-            print(String(format: "Metal FPS: %.1f (rows rebuilt: %d/%d)", fps, debugRowsRebuilt, totalRows))
-            debugFrameCount = 0
-            debugLastLogTime = now
+        if MetalTerminalRenderer.fpsLoggingEnabled {
+            debugFrameCount += 1
+            let now = CFAbsoluteTimeGetCurrent()
+            let elapsed = now - debugLastLogTime
+            if elapsed >= 1.0 {
+                let totalRows = debugRowsRebuilt + debugRowsCached
+                let fps = Double(debugFrameCount) / elapsed
+                print(String(format: "Metal FPS: %.1f (rows rebuilt: %d/%d)", fps, debugRowsRebuilt, totalRows))
+                debugFrameCount = 0
+                debugLastLogTime = now
+            }
         }
 #endif
         let bgColor = colorToSIMD(terminalView.nativeBackgroundColor)
@@ -425,7 +430,7 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         let viewport = SIMD2<Float>(Float(view.drawableSize.width), Float(view.drawableSize.height))
 
         if let frame = drawData.frame {
-            drawFrameData(frame, encoder: encoder, viewport: viewport)
+            drawFrameData(frame, encoder: encoder, viewport: viewport, scale: scale)
         } else {
             let rows = drawData.rows
             drawVertexBuffers(rows: rows,
@@ -440,6 +445,8 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
                           imageKey: \.underImageBuffers,
                           encoder: encoder,
                           viewport: viewport)
+
+            drawVTGPlaneIfNeeded(.underText, encoder: encoder, viewport: viewport, scale: scale)
 
             drawVertexBuffers(rows: rows,
                               bufferKey: \.glyphGrayBuffer,
@@ -456,6 +463,8 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
                               texture: colorAtlas.texture,
                               encoder: encoder,
                               viewport: viewport)
+
+            drawVTGPlaneIfNeeded(.textPlane, encoder: encoder, viewport: viewport, scale: scale)
 
             drawVertexBuffers(rows: rows,
                               bufferKey: \.decorationBuffer,
@@ -1674,7 +1683,7 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
             guard let buffer = dequeue(length: length) else {
                 return nil
             }
-            vertices.withUnsafeBytes { raw in
+            _ = vertices.withUnsafeBytes { raw in
                 memcpy(buffer.contents(), raw.baseAddress!, byteCount)
             }
             frameBuffers.append(buffer)
@@ -1865,7 +1874,7 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         guard let buffer = device.makeBuffer(length: byteCount, options: .storageModeShared) else {
             return (nil, 0)
         }
-        vertices.withUnsafeBytes { raw in
+        _ = vertices.withUnsafeBytes { raw in
             memcpy(buffer.contents(), raw.baseAddress!, byteCount)
         }
         return (buffer, count)
@@ -1925,7 +1934,83 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: cells.count * 6)
     }
 
-    private func drawFrameData(_ frame: FrameDrawData, encoder: MTLRenderCommandEncoder, viewport: SIMD2<Float>) {
+    private func drawVTGPlaneIfNeeded(_ plane: VTGCompositingPlane, encoder: MTLRenderCommandEncoder, viewport: SIMD2<Float>, scale: CGFloat) {
+        #if os(macOS)
+        guard let terminalView = terminalView as? VectorTerminalView else {
+            return
+        }
+        let scene = terminalView.vtgSession.visibleSceneSnapshot
+        let plan = scene.renderPlan(
+            plane: plane,
+            canvas: VTGRenderCanvas(width: terminalView.bounds.width, height: terminalView.bounds.height)
+        )
+        guard plan.entries.isEmpty == false else {
+            return
+        }
+        let batches = VTGMetalPrimitiveRenderer.makeBatches(
+            plan: plan,
+            scale: scale,
+            drawableHeight: CGFloat(viewport.y)
+        )
+        guard batches.isEmpty == false else {
+            return
+        }
+        encoder.setRenderPipelineState(colorPipeline)
+        var viewportVar = viewport
+        encoder.setVertexBytes(&viewportVar, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
+
+        let fullScissor = MTLScissorRect(
+            x: 0,
+            y: 0,
+            width: max(1, Int(viewport.x.rounded(.down))),
+            height: max(1, Int(viewport.y.rounded(.down)))
+        )
+        for batch in batches {
+            guard let buffer = makeBuffer(batch.vertices) else {
+                continue
+            }
+            if let clip = batch.clip,
+               let scissor = makeVTGScissorRect(clip: clip, viewport: viewport, scale: scale) {
+                encoder.setScissorRect(scissor)
+            } else {
+                encoder.setScissorRect(fullScissor)
+            }
+            encoder.setVertexBuffer(buffer, offset: 0, index: 0)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: batch.vertices.count)
+        }
+        encoder.setScissorRect(fullScissor)
+        #endif
+    }
+
+    #if os(macOS)
+    private func makeVTGScissorRect(clip: VTGLayerClip, viewport: SIMD2<Float>, scale: CGFloat) -> MTLScissorRect? {
+        let drawableWidth = CGFloat(viewport.x)
+        let drawableHeight = CGFloat(viewport.y)
+        let scaled = CGRect(
+            x: CGFloat(clip.x) * scale,
+            y: CGFloat(clip.y) * scale,
+            width: CGFloat(clip.width) * scale,
+            height: CGFloat(clip.height) * scale
+        )
+        let drawableBounds = CGRect(x: 0, y: 0, width: drawableWidth, height: drawableHeight)
+        let clipped = scaled.intersection(drawableBounds)
+        guard clipped.isNull == false, clipped.width > 0, clipped.height > 0 else {
+            return nil
+        }
+        let x = max(0, Int(clipped.minX.rounded(.down)))
+        let y = max(0, Int(clipped.minY.rounded(.down)))
+        let maxWidth = max(0, Int(drawableWidth.rounded(.down)) - x)
+        let maxHeight = max(0, Int(drawableHeight.rounded(.down)) - y)
+        let width = min(maxWidth, max(1, Int(clipped.width.rounded(.up))))
+        let height = min(maxHeight, max(1, Int(clipped.height.rounded(.up))))
+        guard width > 0, height > 0 else {
+            return nil
+        }
+        return MTLScissorRect(x: x, y: y, width: width, height: height)
+    }
+    #endif
+
+    private func drawFrameData(_ frame: FrameDrawData, encoder: MTLRenderCommandEncoder, viewport: SIMD2<Float>, scale: CGFloat) {
         drawCellBuffer(frame.backgroundCells,
                        pipeline: cellColorPipeline,
                        texture: nil,
@@ -1933,6 +2018,8 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
                        viewport: viewport)
 
         drawImageBatches(frame.underImageDraws, encoder: encoder, viewport: viewport)
+
+        drawVTGPlaneIfNeeded(.underText, encoder: encoder, viewport: viewport, scale: scale)
 
         drawCellBuffer(frame.glyphCellsGray,
                        pipeline: cellTextGrayPipeline,
@@ -1945,6 +2032,8 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
                        texture: colorAtlas.texture,
                        encoder: encoder,
                        viewport: viewport)
+
+        drawVTGPlaneIfNeeded(.textPlane, encoder: encoder, viewport: viewport, scale: scale)
 
         drawCellBuffer(frame.decorationCells,
                        pipeline: cellColorPipeline,
@@ -2743,4 +2832,5 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         return bundles
     }
 }
+
 #endif

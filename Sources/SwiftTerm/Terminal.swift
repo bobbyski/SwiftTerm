@@ -1075,6 +1075,16 @@ open class Terminal {
     {
         parser.oscHandlers [code] = handler
     }
+
+    /// Registers a generic private sequence handler.
+    ///
+    /// Handlers are called for unhandled OSC sequences and for APC sequences
+    /// before SwiftTerm falls back to its built-in APC handling. Return `true`
+    /// to mark the sequence as consumed.
+    public func registerPrivateSequenceHandler(_ handler: @escaping TerminalPrivateSequenceHandler)
+    {
+        parser.privateSequenceHandlers.append(handler)
+    }
     
     func cmdSet8BitControls ()
     {

@@ -2,6 +2,24 @@ import Foundation
 
 /// Shape and path command parsing for the retained VTG scene.
 extension VTGGraphicsScene {
+    func parseClearRect(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
+        guard let id = command.parameters["id"] else {
+            return nil
+        }
+        let width = command.double("w", default: command.double("width"))
+        let height = command.double("h", default: command.double("height"))
+        guard width > 0, height > 0 else {
+            return nil
+        }
+        return .clearRect(
+            id: id,
+            x: command.double("x"),
+            y: command.double("y"),
+            width: width,
+            height: height
+        )
+    }
+
     func parseTriangle(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
         guard let id = command.parameters["id"] else {
             return nil

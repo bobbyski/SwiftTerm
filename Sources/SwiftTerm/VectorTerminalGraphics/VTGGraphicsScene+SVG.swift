@@ -59,6 +59,9 @@ private extension VTGPrimitive {
         case .pixel(_, let x, let y, let color):
             return "<rect x=\"\(svgNumber(x.rounded(.down)))\" y=\"\(svgNumber(y.rounded(.down)))\" width=\"1\" height=\"1\" fill=\"\(color.svgColor)\" fill-opacity=\"\(svgNumber(color.alpha))\"/>"
 
+        case .clearRect(_, let x, let y, let width, let height):
+            return "<rect x=\"\(svgNumber(x))\" y=\"\(svgNumber(y))\" width=\"\(svgNumber(width))\" height=\"\(svgNumber(height))\" fill=\"transparent\" data-vtg-clear=\"true\"/>"
+
         case .line(_, let x1, let y1, let x2, let y2, let stroke, let width, let lineCap):
             return "<line x1=\"\(svgNumber(x1))\" y1=\"\(svgNumber(y1))\" x2=\"\(svgNumber(x2))\" y2=\"\(svgNumber(y2))\" stroke=\"\(stroke.svgColor)\" stroke-opacity=\"\(svgNumber(stroke.alpha))\" stroke-width=\"\(svgNumber(width))\" stroke-linecap=\"\(lineCap?.rawValue ?? "round")\"/>"
 

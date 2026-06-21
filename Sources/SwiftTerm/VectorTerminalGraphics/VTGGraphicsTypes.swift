@@ -6,6 +6,7 @@ import Foundation
 /// instead of clearing and repainting the entire canvas every frame.
 public enum VTGPrimitive: Equatable {
     case pixel(id: String, x: Double, y: Double, color: VTGColor)
+    case clearRect(id: String, x: Double, y: Double, width: Double, height: Double)
     case line(id: String, x1: Double, y1: Double, x2: Double, y2: Double, stroke: VTGColor, width: Double, lineCap: VTGLineCap?)
     case draw(id: String, points: [VTGPoint], stroke: VTGColor, width: Double, lineCap: VTGLineCap?, lineJoin: VTGLineJoin?)
     case curve(id: String, curve: VTGCurve, stroke: VTGColor, width: Double, lineCap: VTGLineCap?, lineJoin: VTGLineJoin?)
@@ -21,6 +22,7 @@ public enum VTGPrimitive: Equatable {
     public var id: String {
         switch self {
         case .pixel(let id, _, _, _),
+             .clearRect(let id, _, _, _, _),
              .line(let id, _, _, _, _, _, _, _),
              .draw(let id, _, _, _, _, _),
              .curve(let id, _, _, _, _, _),

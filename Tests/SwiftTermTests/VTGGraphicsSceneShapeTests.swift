@@ -4,6 +4,27 @@ import Testing
 @testable import SwiftTerm
 
 final class VTGGraphicsSceneShapeTests {
+    @Test func clearRectParsesRetainedRegion() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command("clearRect", [
+            "id": "erase",
+            "x": "10",
+            "y": "20",
+            "w": "30",
+            "h": "40"
+        ]))
+
+        guard case .clearRect(_, let x, let y, let width, let height) = scene.primitives.first else {
+            Issue.record("Expected retained clearRect primitive")
+            return
+        }
+        #expect(x == 10)
+        #expect(y == 20)
+        #expect(width == 30)
+        #expect(height == 40)
+    }
+
     @Test func rectParsesOptionalCornerRadius() {
         let scene = VTGGraphicsScene()
 

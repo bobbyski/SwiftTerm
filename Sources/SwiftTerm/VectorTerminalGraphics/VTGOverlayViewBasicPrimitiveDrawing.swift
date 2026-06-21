@@ -7,6 +7,14 @@ extension VTGOverlayView {
         context.fill(CGRect(x: x.rounded(.down), y: y.rounded(.down), width: 1, height: 1))
     }
 
+    /// Clear a rectangular region back to transparent pixels in the current
+    /// graphics layer. This is intentionally different from drawing a
+    /// background-colored rectangle: later primitives can still draw over the
+    /// cleared region, and lower layers remain visible through it.
+    func drawClearRect(x: Double, y: Double, width: Double, height: Double, in context: CGContext) {
+        context.clear(CGRect(x: x, y: y, width: width, height: height))
+    }
+
     func drawLine(
         x1: Double,
         y1: Double,

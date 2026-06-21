@@ -44,6 +44,8 @@ final class VTGResponseEncoderFixtureTests {
             return "hit,id=button,x=10,y=20,w=100,h=40,target=quit,layer=2"
         case "pixel":
             return "pixel,id=p1,x=4,y=5,color=#22c55e"
+        case "clearRect":
+            return "clearRect,id=erase,x=4,y=5,w=20,h=30,layer=2"
         case "line":
             return "line,id=l1,x1=1,y1=2,x2=3,y2=4,stroke=#5eead4,width=2"
         case "draw":

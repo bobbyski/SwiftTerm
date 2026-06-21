@@ -8,6 +8,9 @@ extension VTGOverlayView {
         case .pixel(_, let x, let y, let color):
             drawPixel(x: x, y: y, color: color, in: context)
 
+        case .clearRect(_, let x, let y, let width, let height):
+            drawClearRect(x: x, y: y, width: width, height: height, in: context)
+
         case .line(_, let x1, let y1, let x2, let y2, let stroke, let width, let lineCap):
             drawLine(x1: x1, y1: y1, x2: x2, y2: y2, stroke: stroke, width: width, lineCap: lineCap, in: context)
 

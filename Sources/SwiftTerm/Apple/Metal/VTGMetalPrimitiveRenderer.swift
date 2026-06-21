@@ -62,6 +62,9 @@ struct VTGMetalPrimitiveRenderer {
                     vertices: &vertices
                 )
 
+            case .clearRect:
+                continue
+
             case .line(_, let x1, let y1, let x2, let y2, let stroke, let width, _):
                 appendLine(
                     from: VTGPoint(x: x1 + entry.offset.x, y: y1 + entry.offset.y),

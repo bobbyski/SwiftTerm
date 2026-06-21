@@ -5,7 +5,7 @@ public extension VTGResponseEncoder {
     static let protocolName = "VTG"
 
     /// Version of the VTG command protocol advertised to child processes.
-    static let version = "1.1.0"
+    static let version = "1.1.2"
 
     /// Versioned shape of the `capabilities` response fields.
     ///
@@ -17,6 +17,7 @@ public extension VTGResponseEncoder {
 
     static let defaultPrimitives = [
         "pixel",
+        "clearRect",
         "line",
         "draw",
         "curve",
@@ -74,6 +75,7 @@ public extension VTGResponseEncoder {
         "hit",
         "hitClear",
         "pixel",
+        "clearRect",
         "line",
         "draw",
         "curve",

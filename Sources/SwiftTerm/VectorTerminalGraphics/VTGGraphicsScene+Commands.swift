@@ -36,7 +36,7 @@ extension VTGGraphicsScene {
         case "pixel":
             upsert(parsePixel(command), command: command)
         case "clearRect":
-            upsert(parseClearRect(command), command: command)
+            clearRegion(command)
         case "line":
             upsert(parseLine(command), command: command)
         case "draw":

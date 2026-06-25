@@ -4,25 +4,41 @@ import Testing
 @testable import SwiftTerm
 
 final class VTGGraphicsSceneShapeTests {
-    @Test func clearRectParsesRetainedRegion() {
+    @Test func clearRectRemovesPrimitivesTouchingRegion() {
         let scene = VTGGraphicsScene()
+
+        scene.apply(command("draw", ["id": "clock-text-0-0", "stroke": "#5eead4", "width": "2"], payload: "10,10 40,10 40,40"))
+        scene.apply(command("draw", ["id": "clock-text-1-0", "stroke": "#facc15", "width": "2"], payload: "50,10 70,10 70,40"))
+        scene.apply(command("draw", ["id": "outside", "stroke": "#ffffff", "width": "2"], payload: "160,10 180,10"))
 
         scene.apply(command("clearRect", [
             "id": "erase",
-            "x": "10",
-            "y": "20",
-            "w": "30",
+            "x": "35",
+            "y": "8",
+            "w": "40",
             "h": "40"
         ]))
 
-        guard case .clearRect(_, let x, let y, let width, let height) = scene.primitives.first else {
-            Issue.record("Expected retained clearRect primitive")
-            return
-        }
-        #expect(x == 10)
-        #expect(y == 20)
-        #expect(width == 30)
-        #expect(height == 40)
+        #expect(scene.primitives.map(\.id) == ["outside"])
+    }
+
+    @Test func clearRectOnlyRemovesTargetLayer() {
+        let scene = VTGGraphicsScene()
+
+        scene.apply(command("draw", ["id": "overlay1", "layer": "1", "stroke": "#5eead4", "width": "2"], payload: "10,10 40,10"))
+        scene.apply(command("draw", ["id": "overlay2", "layer": "2", "stroke": "#facc15", "width": "2"], payload: "10,10 40,10"))
+
+        scene.apply(command("clearRect", [
+            "id": "erase",
+            "layer": "1",
+            "x": "0",
+            "y": "0",
+            "w": "80",
+            "h": "80"
+        ]))
+
+        #expect(scene.primitives.map(\.id) == ["overlay2"])
+        #expect(scene.layer(for: scene.primitives[0]) == 2)
     }
 
     @Test func rectParsesOptionalCornerRadius() {

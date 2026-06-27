@@ -41,8 +41,13 @@ open class VectorTerminalView: TerminalView {
             self?.sendVTGResponse(response)
         },
         sceneDidChange: { [weak self] scene in
-            self?.vtgOverlayView.scene = scene
-            self?.vtgOverlayView.needsDisplay = true
+            guard let self else {
+                return
+            }
+            self.vtgOverlayView.scene = scene
+            self.vtgOverlayView.isHidden = !self.areGraphicsLayersVisible
+            self.vtgOverlayView.needsDisplay = true
+            self.needsDisplay = true
         }
     )
 
@@ -106,6 +111,27 @@ open class VectorTerminalView: TerminalView {
         }
     }
 
+    /// Whether all retained VTG graphics layers are currently rendered.
+    public var areGraphicsLayersVisible: Bool {
+        vtgSession.graphicsLayersVisible
+    }
+
+    /// Show or hide all VTG graphics layers while preserving retained state.
+    public func setGraphicsLayersVisible(_ isVisible: Bool) {
+        vtgSession.setGraphicsLayersVisible(isVisible)
+        vtgOverlayView.isHidden = !isVisible
+        vtgOverlayView.needsDisplay = true
+        needsDisplay = true
+    }
+
+    /// Toggle all VTG graphics layers and return the new visibility state.
+    @discardableResult
+    public func toggleGraphicsLayersVisible() -> Bool {
+        let nextValue = !areGraphicsLayersVisible
+        setGraphicsLayersVisible(nextValue)
+        return nextValue
+    }
+
     /// Send a resize event to any host-fed subscriber when the canvas changes.
     public func notifyVTGResizeIfNeeded(force: Bool = false) {
         vtgSession.notifyResizeIfNeeded(force: force)
@@ -160,6 +186,9 @@ open class VectorTerminalView: TerminalView {
     /// layer-0 spike for the vector subset that already works in the Metal VTG
     /// primitive pipeline, while richer layer-0 behavior remains reserved.
     open override func drawTerminalTextPlaneGraphics(dirtyRect: CGRect, context: CGContext) {
+        guard areGraphicsLayersVisible else {
+            return
+        }
         let scene = vtgSession.visibleSceneSnapshot
         guard !scene.textPlanePrimitives.isEmpty else {
             return
@@ -180,6 +209,7 @@ open class VectorTerminalView: TerminalView {
         terminal.registerPrivateSequenceHandler { [weak self] sequence in
             self?.vtgSession.handlePrivateSequence(sequence) ?? false
         }
+        vtgOverlayView.isHidden = !areGraphicsLayersVisible
     }
 }
 #endif

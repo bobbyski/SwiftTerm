@@ -62,6 +62,8 @@ public extension VTGResponseEncoder {
         "capabilities?",
         "canvas?",
         "size?",
+        "graphicsVisible",
+        "graphicsVisible?",
         "resizeEvents",
         "mouseEvents",
         "defaultLayer",

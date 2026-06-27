@@ -1939,6 +1939,9 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         guard let terminalView = terminalView as? VectorTerminalView else {
             return
         }
+        guard terminalView.areGraphicsLayersVisible else {
+            return
+        }
         let scene = terminalView.vtgSession.visibleSceneSnapshot
         let plan = scene.renderPlan(
             plane: plane,

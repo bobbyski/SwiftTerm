@@ -55,6 +55,20 @@ open class LocalProcessVectorTerminalView: VectorTerminalView, TerminalViewDeleg
         super.mouseDown(with: event)
     }
 
+    open override func rightMouseDown(with event: NSEvent) {
+        if handleVTGMouseDown(event) {
+            return
+        }
+        super.rightMouseDown(with: event)
+    }
+
+    open override func otherMouseDown(with event: NSEvent) {
+        if handleVTGMouseDown(event) {
+            return
+        }
+        super.otherMouseDown(with: event)
+    }
+
     open override func mouseUp(with event: NSEvent) {
         if handleVTGMouseUp(event) {
             return
@@ -62,11 +76,39 @@ open class LocalProcessVectorTerminalView: VectorTerminalView, TerminalViewDeleg
         super.mouseUp(with: event)
     }
 
+    open override func rightMouseUp(with event: NSEvent) {
+        if handleVTGMouseUp(event) {
+            return
+        }
+        super.rightMouseUp(with: event)
+    }
+
+    open override func otherMouseUp(with event: NSEvent) {
+        if handleVTGMouseUp(event) {
+            return
+        }
+        super.otherMouseUp(with: event)
+    }
+
     open override func mouseDragged(with event: NSEvent) {
         if sendVTGMouseEventToChild(event, type: .drag) {
             return
         }
         super.mouseDragged(with: event)
+    }
+
+    open override func rightMouseDragged(with event: NSEvent) {
+        if sendVTGMouseEventToChild(event, type: .drag) {
+            return
+        }
+        super.rightMouseDragged(with: event)
+    }
+
+    open override func otherMouseDragged(with event: NSEvent) {
+        if sendVTGMouseEventToChild(event, type: .drag) {
+            return
+        }
+        super.otherMouseDragged(with: event)
     }
 
     open override func viewDidMoveToWindow() {

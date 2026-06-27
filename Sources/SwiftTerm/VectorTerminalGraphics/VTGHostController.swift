@@ -18,6 +18,7 @@ public final class VTGHostController {
     public internal(set) var sendsResizeEvents = false
     public internal(set) var sendsMouseEvents = false
     public internal(set) var mouseMode: VTGMouseMode = .click
+    public internal(set) var graphicsLayersVisible = true
 
     /// Whether a graphics-only offscreen frame is currently buffering VTG
     /// scene mutations.
@@ -80,6 +81,11 @@ public final class VTGHostController {
     /// fires. The visible retained scene is left unchanged.
     public func discardPendingFrame() {
         pendingFrame = nil
+    }
+
+    /// Show or hide all VTG graphics layers without mutating retained objects.
+    public func setGraphicsLayersVisible(_ isVisible: Bool) {
+        graphicsLayersVisible = isVisible
     }
 
     struct PendingFrame {

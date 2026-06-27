@@ -33,9 +33,13 @@ extension VTGHostController {
             return [VTGResponseEncoder.canvasResponse(commandName: "canvas", canvas: canvas)]
         case "size?":
             return [VTGResponseEncoder.canvasResponse(commandName: "size", canvas: canvas)]
+        case "graphicsVisible?":
+            return [VTGResponseEncoder.graphicsVisible(isVisible: graphicsLayersVisible)]
+        case "graphicsVisible":
+            graphicsLayersVisible = parseEnabled(command.parameters)
+            return []
         case "resizeEvents":
-            sendsResizeEvents = command.parameters["enabled"] == "1" ||
-                command.parameters["enabled"] == "true"
+            sendsResizeEvents = parseEnabled(command.parameters)
             if sendsResizeEvents {
                 lastReportedCanvas = canvas
                 return [VTGResponseEncoder.resize(canvas: canvas)]
@@ -43,12 +47,21 @@ extension VTGHostController {
             lastReportedCanvas = nil
             return []
         case "mouseEvents":
-            sendsMouseEvents = command.parameters["enabled"] == "1" ||
-                command.parameters["enabled"] == "true"
+            sendsMouseEvents = parseEnabled(command.parameters)
             mouseMode = VTGMouseMode(rawValue: command.parameters["mode"] ?? "raw") ?? .raw
             return []
         default:
             return []
+        }
+    }
+
+    private func parseEnabled(_ parameters: [String: String]) -> Bool {
+        let rawValue = parameters["enabled"] ?? parameters["visible"] ?? "0"
+        switch rawValue.lowercased() {
+        case "1", "true", "yes", "on":
+            return true
+        default:
+            return false
         }
     }
 }

@@ -41,6 +41,11 @@ public final class VTGHostSession {
         controller.mouseMode
     }
 
+    /// Whether retained VTG graphics layers are currently rendered.
+    public var graphicsLayersVisible: Bool {
+        controller.graphicsLayersVisible
+    }
+
     /// Snapshot of the currently visible retained VTG scene.
     ///
     /// This is intended for embedders and future terminal-renderer integration
@@ -94,6 +99,12 @@ public final class VTGHostSession {
     /// it only drops work that had not yet been committed with `endFrame`.
     public func discardPendingFrame() {
         controller.discardPendingFrame()
+        sceneDidChange(controller.scene)
+    }
+
+    /// Show or hide all VTG graphics layers without clearing retained objects.
+    public func setGraphicsLayersVisible(_ isVisible: Bool) {
+        controller.setGraphicsLayersVisible(isVisible)
         sceneDidChange(controller.scene)
     }
 

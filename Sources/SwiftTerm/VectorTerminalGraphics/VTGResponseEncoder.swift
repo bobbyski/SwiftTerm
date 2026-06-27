@@ -59,6 +59,11 @@ public enum VTGResponseEncoder {
         canvasResponse(commandName: "resize", canvas: canvas)
     }
 
+    /// Encode the current retained graphics visibility state.
+    public static func graphicsVisible(isVisible: Bool) -> String {
+        apc("graphicsVisible", [("visible", isVisible ? "1" : "0")])
+    }
+
     static func apc(_ commandName: String, _ fields: [(String, String)]) -> String {
         let parameters = fields
             .map { key, value in "\(key)=\(value)" }

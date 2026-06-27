@@ -2123,6 +2123,22 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         }
         setNeedsDisplay(bounds)
     }
+
+    open override func rightMouseDown(with event: NSEvent) {
+        if allowMouseReporting && !shiftBypassesMouseReporting(for: event) && terminal.mouseMode.sendButtonPress() {
+            sharedMouseEvent(with: event)
+            return
+        }
+        super.rightMouseDown(with: event)
+    }
+
+    open override func otherMouseDown(with event: NSEvent) {
+        if allowMouseReporting && !shiftBypassesMouseReporting(for: event) && terminal.mouseMode.sendButtonPress() {
+            sharedMouseEvent(with: event)
+            return
+        }
+        super.otherMouseDown(with: event)
+    }
     
     func getPayload (for event: NSEvent) -> Any?
     {
@@ -2152,6 +2168,22 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         #endif
         
         didSelectionDrag = false
+    }
+
+    open override func rightMouseUp(with event: NSEvent) {
+        if allowMouseReporting && !shiftBypassesMouseReporting(for: event) && terminal.mouseMode.sendButtonRelease() {
+            sharedMouseEvent(with: event)
+            return
+        }
+        super.rightMouseUp(with: event)
+    }
+
+    open override func otherMouseUp(with event: NSEvent) {
+        if allowMouseReporting && !shiftBypassesMouseReporting(for: event) && terminal.mouseMode.sendButtonRelease() {
+            sharedMouseEvent(with: event)
+            return
+        }
+        super.otherMouseUp(with: event)
     }
     
     open override func mouseDragged(with event: NSEvent) {
@@ -2225,6 +2257,33 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
                 urlPreview = nup
             }
         }
+    }
+
+    open override func rightMouseDragged(with event: NSEvent) {
+        sharedDraggedMouseEvent(with: event)
+    }
+
+    open override func otherMouseDragged(with event: NSEvent) {
+        sharedDraggedMouseEvent(with: event)
+    }
+
+    private func sharedDraggedMouseEvent(with event: NSEvent) {
+        let displayBuffer = terminal.displayBuffer
+        let mouseHit = calculateMouseHit(with: event)
+        let hit = mouseHit.grid
+        if allowMouseReporting && !shiftBypassesMouseReporting(for: event) {
+            if terminal.mouseMode.sendButtonTracking() {
+                let flags = encodeMouseEvent(with: event)
+                let screenRow = max (0, min (displayBuffer.rows - 1, hit.row - displayBuffer.yDisp))
+                terminal.sendMotion(buttonFlags: flags, x: hit.col, y: screenRow, pixelX: mouseHit.pixels.col, pixelY: mouseHit.pixels.row)
+
+                return
+            }
+            if terminal.mouseMode != .off {
+                return
+            }
+        }
+        super.mouseDragged(with: event)
     }
     
     func removePreviewUrl ()

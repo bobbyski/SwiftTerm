@@ -42,26 +42,28 @@ public final class VTGHostController {
     public func handlePrivateSequence(
         _ sequence: TerminalPrivateSequence,
         canvas: VTGCanvasSize,
-        renderer: String = "overlay"
+        renderer: String = "overlay",
+        glyphSize: (width: Double, height: Double)? = nil
     ) -> [String]? {
         guard let command = parser.command(from: sequence) else {
             return nil
         }
-        return process([command], canvas: canvas, renderer: renderer)
+        return process([command], canvas: canvas, renderer: renderer, glyphSize: glyphSize)
     }
 
     /// Apply parsed VTG commands and return immediate host responses.
     public func process(
         _ commands: [VectorTerminalGraphicsCommand],
         canvas: VTGCanvasSize,
-        renderer: String = "overlay"
+        renderer: String = "overlay",
+        glyphSize: (width: Double, height: Double)? = nil
     ) -> [String] {
         var responses: [String] = []
         for command in commands {
             if let timeoutResponse = expirePendingFrameIfNeeded() {
                 responses.append(timeoutResponse)
             }
-            responses.append(contentsOf: responsesForCommand(command, canvas: canvas, renderer: renderer))
+            responses.append(contentsOf: responsesForCommand(command, canvas: canvas, renderer: renderer, glyphSize: glyphSize))
             let frameResult = handleFrameCommand(command)
             if let frameResponse = frameResult.response {
                 responses.append(frameResponse)

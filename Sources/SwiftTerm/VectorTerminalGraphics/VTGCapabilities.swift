@@ -64,6 +64,7 @@ public extension VTGResponseEncoder {
         "size?",
         "graphicsVisible",
         "graphicsVisible?",
+        "glyphSize?",
         "resizeEvents",
         "mouseEvents",
         "defaultLayer",

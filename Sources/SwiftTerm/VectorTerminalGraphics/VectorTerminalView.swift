@@ -34,6 +34,12 @@ open class VectorTerminalView: TerminalView {
         rendererProvider: { [weak self] in
             self?.currentVTGRendererName() ?? "overlay"
         },
+        glyphSizeProvider: { [weak self] in
+            guard let self else {
+                return nil
+            }
+            return self.currentVTGCellSize()
+        },
         processRunning: { [weak self] in
             self?.vtgProcessRunningForResponses() == true
         },
@@ -142,6 +148,22 @@ open class VectorTerminalView: TerminalView {
         VTGCanvasSize.bestAvailable(
             preferredView: vtgOverlayView,
             fallbackView: self
+        )
+    }
+
+    /// Current terminal cell size in VTG logical canvas coordinates.
+    ///
+    /// `cellSizeInPixels(...)` reports backing pixels on Retina displays, but
+    /// VTG drawing commands use the logical canvas coordinate space. Query
+    /// responses must use the same coordinate system as drawing or cell-aligned
+    /// graphics will be misplaced by the backing scale factor.
+    open func currentVTGCellSize() -> (width: Double, height: Double)? {
+        guard let cellDimension, cellDimension.width > 0, cellDimension.height > 0 else {
+            return nil
+        }
+        return (
+            width: max(1, Double(cellDimension.width)),
+            height: max(1, Double(cellDimension.height))
         )
     }
 

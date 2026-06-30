@@ -64,6 +64,28 @@ public enum VTGResponseEncoder {
         apc("graphicsVisible", [("visible", isVisible ? "1" : "0")])
     }
 
+    /// Encode the terminal glyph cell size used by a normal-width character.
+    public static func glyphSize(width: Double, height: Double, character: String = "W") -> String {
+        apc(
+            "glyphSize",
+            [
+                ("character", character),
+                ("width", formatNumber(width)),
+                ("height", formatNumber(height))
+            ]
+        )
+    }
+
+    private static func formatNumber(_ value: Double) -> String {
+        let rounded = value.rounded()
+        if abs(value - rounded) < 0.0001 {
+            return String(Int(rounded))
+        }
+        return String(format: "%.4f", locale: Locale(identifier: "en_US_POSIX"), value)
+            .replacingOccurrences(of: #"0+$"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\.$"#, with: "", options: .regularExpression)
+    }
+
     static func apc(_ commandName: String, _ fields: [(String, String)]) -> String {
         let parameters = fields
             .map { key, value in "\(key)=\(value)" }

@@ -12,10 +12,10 @@ final class VTGResponseEncoderTests {
         #expect(response.hasPrefix("\u{1B}_VTG;capabilities,"))
         #expect(response.contains("protocol=VTG"))
         #expect(response.contains("schema=vtg.capabilities.v1"))
-        #expect(response.contains("version=1.5.4"))
+        #expect(response.contains("version=1.5.5"))
         #expect(response.contains("canvasWidth=800"))
         #expect(response.contains("canvasHeight=600"))
-        #expect(response.contains("commands=begin|present|clear|delete|capabilities?|canvas?|size?|resizeEvents|mouseEvents|defaultLayer|layer|layerScroll|layerAlpha|viewportMode|viewportScale|clip|clipClear|hit|hitClear|pixel|clearRect|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|startFrame|endFrame|cancelFrame|spriteUpload|vectorSpriteUpload|spriteDataUpload|sprite|spriteMove|spriteRotate|spriteAnchor|spriteTransform|spriteRemove|spriteClear"))
+        #expect(response.contains("commands=begin|present|clear|delete|capabilities?|canvas?|size?|graphicsVisible|graphicsVisible?|glyphSize?|resizeEvents|mouseEvents|defaultLayer|layer|layerScroll|layerAlpha|viewportMode|viewportScale|clip|clipClear|hit|hitClear|pixel|clearRect|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|startFrame|endFrame|cancelFrame|spriteUpload|vectorSpriteUpload|spriteDataUpload|sprite|spriteMove|spriteRotate|spriteAnchor|spriteTransform|spriteRemove|spriteClear"))
         #expect(response.contains("planned="))
         #expect(response.contains("primitives=pixel|clearRect|line|draw|curve|triangle|path|rect|circle|ellipse|text|image|sprite"))
         #expect(response.contains("underText=pixel|line|draw|curve|triangle|path|rect|circle|ellipse"))
@@ -43,6 +43,11 @@ final class VTGResponseEncoderTests {
         #expect(VTGResponseEncoder.canvasResponse(commandName: "canvas", canvas: canvas) == "\u{1B}_VTG;canvas,width=120,height=80\u{1B}\\")
         #expect(VTGResponseEncoder.canvasResponse(commandName: "size", canvas: canvas) == "\u{1B}_VTG;size,width=120,height=80\u{1B}\\")
         #expect(VTGResponseEncoder.resize(canvas: canvas) == "\u{1B}_VTG;resize,width=120,height=80\u{1B}\\")
+    }
+
+    @Test func encodesGlyphSizeResponse() {
+        #expect(VTGResponseEncoder.glyphSize(width: 9, height: 18) == "\u{1B}_VTG;glyphSize,character=W,width=9,height=18\u{1B}\\")
+        #expect(VTGResponseEncoder.glyphSize(width: 8.625, height: 18.25) == "\u{1B}_VTG;glyphSize,character=W,width=8.625,height=18.25\u{1B}\\")
     }
 
     @Test func encodesMouseResponseWithOptionalFields() {

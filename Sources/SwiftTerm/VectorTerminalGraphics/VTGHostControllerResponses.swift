@@ -24,7 +24,8 @@ extension VTGHostController {
     func responsesForCommand(
         _ command: VectorTerminalGraphicsCommand,
         canvas: VTGCanvasSize,
-        renderer: String = "overlay"
+        renderer: String = "overlay",
+        glyphSize: (width: Double, height: Double)? = nil
     ) -> [String] {
         switch command.name {
         case "capabilities?":
@@ -35,6 +36,11 @@ extension VTGHostController {
             return [VTGResponseEncoder.canvasResponse(commandName: "size", canvas: canvas)]
         case "graphicsVisible?":
             return [VTGResponseEncoder.graphicsVisible(isVisible: graphicsLayersVisible)]
+        case "glyphSize?":
+            guard let glyphSize else {
+                return []
+            }
+            return [VTGResponseEncoder.glyphSize(width: glyphSize.width, height: glyphSize.height)]
         case "graphicsVisible":
             graphicsLayersVisible = parseEnabled(command.parameters)
             return []

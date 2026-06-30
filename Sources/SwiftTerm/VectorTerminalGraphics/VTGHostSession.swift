@@ -11,6 +11,7 @@ public final class VTGHostSession {
 
     public var canvasProvider: () -> VTGCanvasSize
     public var rendererProvider: () -> String
+    public var glyphSizeProvider: () -> (width: Double, height: Double)?
     public var processRunning: () -> Bool
     public var sendResponse: (String) -> Void
     public var sceneDidChange: (VTGGraphicsScene) -> Void
@@ -19,6 +20,7 @@ public final class VTGHostSession {
         controller: VTGHostController = VTGHostController(),
         canvasProvider: @escaping () -> VTGCanvasSize,
         rendererProvider: @escaping () -> String = { "overlay" },
+        glyphSizeProvider: @escaping () -> (width: Double, height: Double)? = { nil },
         processRunning: @escaping () -> Bool,
         sendResponse: @escaping (String) -> Void,
         sceneDidChange: @escaping (VTGGraphicsScene) -> Void
@@ -26,6 +28,7 @@ public final class VTGHostSession {
         self.controller = controller
         self.canvasProvider = canvasProvider
         self.rendererProvider = rendererProvider
+        self.glyphSizeProvider = glyphSizeProvider
         self.processRunning = processRunning
         self.sendResponse = sendResponse
         self.sceneDidChange = sceneDidChange
@@ -71,7 +74,8 @@ public final class VTGHostSession {
         guard let responses = controller.handlePrivateSequence(
             sequence,
             canvas: canvasProvider(),
-            renderer: rendererProvider()
+            renderer: rendererProvider(),
+            glyphSize: glyphSizeProvider()
         ) else {
             return false
         }

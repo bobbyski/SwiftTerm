@@ -44,6 +44,16 @@ final class VectorTerminalViewTests {
         #expect(view.vtgOverlayView.scene?.renderPrimitives.map(\.id) == ["visible"])
     }
 
+    @Test func glyphSizeUsesTerminalCellMetrics() {
+        let view = VectorTerminalView(frame: NSRect(x: 0, y: 0, width: 1290, height: 822))
+        view.terminal.resize(cols: 149, rows: 45)
+
+        let cellSize = view.currentVTGCellSize()
+
+        #expect(abs((cellSize?.width ?? 0) - Double(view.cellDimension.width)) < 0.0001)
+        #expect(abs((cellSize?.height ?? 0) - Double(view.cellDimension.height)) < 0.0001)
+    }
+
     @Test func localProcessTerminationDiscardsPendingOffscreenFrame() {
         let view = LocalProcessVectorTerminalView(frame: NSRect(x: 0, y: 0, width: 320, height: 200))
 

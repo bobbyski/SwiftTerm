@@ -456,6 +456,9 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
 
     /// Prefix non-ASCII input scalars with Control-V before sending them to the child process.
     public var escapeNonASCIIInputWithControlV: Bool = false
+
+    /// When true, wheel events in the alternate screen send up/down keys unless Fn or Shift is held.
+    public var scrollAlternateScreenSendsArrowKeys: Bool = true
     
     var _nativeFg, _nativeBg: TTColor!
     var settingFg = false, settingBg = false
@@ -2409,7 +2412,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             for _ in 0..<lines {
                 terminal.sendEvent(buttonFlags: buttonFlags, x: hit.grid.col, y: screenRow, pixelX: hit.pixels.col, pixelY: hit.pixels.row)
             }
-        } else if terminal.isDisplayBufferAlternate {
+        } else if terminal.isDisplayBufferAlternate && scrollAlternateScreenSendsArrowKeys && !event.modifierFlags.contains(.function) && !event.modifierFlags.contains(.shift) {
             let lines = calcScrollingVelocity(delta: Int(abs(event.deltaY)))
             for _ in 0..<lines {
                 if event.deltaY > 0 {

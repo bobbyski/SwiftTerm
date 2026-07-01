@@ -18,6 +18,9 @@ public protocol LocalProcessVectorTerminalViewDelegate: AnyObject {
     /// Called when OSC 7 reports a new host current directory.
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?)
 
+    /// Called when the child process emits BEL.
+    func bell(source: TerminalView)
+
     /// Called when the child process exits.
     func processTerminated(source: TerminalView, exitCode: Int32?)
 }

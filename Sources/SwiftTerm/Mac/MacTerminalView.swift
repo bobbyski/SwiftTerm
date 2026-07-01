@@ -39,6 +39,9 @@ import MetalKit
  * defaults, otherwise, this uses its own set of defaults colors.
  */
 open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, TerminalDelegate {
+    /// Controls whether local input should jump the viewport back to the caret.
+    public var scrollToBottomOnInput: Bool = true
+
 #if canImport(MetalKit)
     // Default to throttling Metal redraws during live-resize; set SWIFTTERM_METAL_LIVE_RESIZE_THROTTLE=0 to disable.
     private static let metalLiveResizeThrottleEnabled: Bool = {
@@ -447,6 +450,12 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
 
     /// This controls whether the backspace should send ^? or ^H, the default is ^?
     public var backspaceSendsControlH: Bool = false
+
+    /// Convert pasted line feeds to carriage returns before sending them to the child process.
+    public var pasteNewlinesAsCarriageReturns: Bool = true
+
+    /// Prefix non-ASCII input scalars with Control-V before sending them to the child process.
+    public var escapeNonASCIIInputWithControlV: Bool = false
     
     var _nativeFg, _nativeBg: TTColor!
     var settingFg = false, settingBg = false
@@ -1247,15 +1256,16 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             if !terminal.keyboardEnhancementFlags.isEmpty {
                 if isPaste, terminal.bracketedPasteMode {
                     pendingKittyKeyEvent = nil
+                    let text = transformedInputText(str as String, isPaste: true)
                     send(data: EscapeSequences.bracketedPasteStart[0...])
-                    send (txt: str as String)
+                    send(txt: text)
                     send(data: EscapeSequences.bracketedPasteEnd[0...])
                     return
                 }
                 let pendingEvent = pendingKittyKeyEvent
                 pendingKittyKeyEvent = nil
                 kittyIsComposing = false
-                let text = str as String
+                let text = transformedInputText(str as String, isPaste: isPaste)
                 let kittyEvent: KittyKeyEvent
                 if text.unicodeScalars.count == 1,
                    let pendingEvent,
@@ -1267,16 +1277,36 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
                 _ = sendKittyEvent(kittyEvent)
                 return
             }
+            let text = transformedInputText(str as String, isPaste: isPaste)
             if isPaste, terminal.bracketedPasteMode {
                 send(data: EscapeSequences.bracketedPasteStart[0...])
             }
-            send (txt: str as String)
+            send(txt: text)
             if isPaste, terminal.bracketedPasteMode {
                 send(data: EscapeSequences.bracketedPasteEnd[0...])
             }
         }
         // TODO: I do not think we actually need this needsDisplay, the data fed should bubble this up
         // needsDisplay = true
+    }
+
+    private func transformedInputText(_ text: String, isPaste: Bool) -> String {
+        let newlineAdjusted = isPaste && pasteNewlinesAsCarriageReturns
+            ? text.replacingOccurrences(of: "\n", with: "\r")
+            : text
+        guard escapeNonASCIIInputWithControlV else {
+            return newlineAdjusted
+        }
+
+        var escaped = String()
+        escaped.reserveCapacity(newlineAdjusted.unicodeScalars.count)
+        for scalar in newlineAdjusted.unicodeScalars {
+            if scalar.value > 0x7f {
+                escaped.append("\u{16}")
+            }
+            escaped.unicodeScalars.append(scalar)
+        }
+        return escaped
     }
     
     // NSTextInputClient protocol implementation

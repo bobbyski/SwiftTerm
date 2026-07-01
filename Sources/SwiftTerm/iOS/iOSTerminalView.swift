@@ -54,6 +54,8 @@ public extension Notification.Name {
 open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollViewDelegate, TerminalDelegate, UIPointerInteractionDelegate {
     public static var textInputDebugEnabled: Bool = ProcessInfo.processInfo.environment["SWIFTTERM_TEXT_INPUT_DEBUG"] == "1"
     internal static var textInputLogCounter: Int = 0
+    /// Controls whether local input should jump the viewport back to the caret.
+    public var scrollToBottomOnInput: Bool = true
 
     struct FontSet {
         public let normal: UIFont

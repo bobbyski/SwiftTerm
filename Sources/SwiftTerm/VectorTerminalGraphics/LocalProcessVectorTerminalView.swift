@@ -170,8 +170,10 @@ open class LocalProcessVectorTerminalView: VectorTerminalView, TerminalViewDeleg
     /// Required terminal delegate hook for changed render ranges.
     open func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
 
-    /// Forward terminal bell events to the standard SwiftTerm behavior.
-    open func bell(source: TerminalView) {}
+    /// Forward terminal bell events to the embedding app.
+    open func bell(source: TerminalView) {
+        processDelegate?.bell(source: source)
+    }
 
     /// Called by ``LocalProcess`` when the child process exits.
     open func processTerminated(_ source: LocalProcess, exitCode: Int32?) {

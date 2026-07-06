@@ -360,6 +360,16 @@ open class Terminal {
     
     // Whether the terminal is operating in application keypad mode
     var applicationKeypad : Bool = false
+
+    /// Controls whether host requests may enable VT100 application keypad mode.
+    public var allowsApplicationKeypadMode: Bool = true {
+        didSet {
+            if !allowsApplicationKeypadMode && applicationKeypad {
+                applicationKeypad = false
+                syncScrollArea()
+            }
+        }
+    }
     
     // Whether the terminal is operating in application cursor mode
     public var applicationCursor : Bool = false
@@ -4381,7 +4391,9 @@ open class Terminal {
                 allow80To132 = true
             case 66:
                 //log ("Serial port requested application keypad.")
-                applicationKeypad = true
+                if allowsApplicationKeypadMode {
+                    applicationKeypad = true
+                }
                 syncScrollArea ()
             case 9:
                 // X10 Mouse
@@ -5480,6 +5492,9 @@ open class Terminal {
     //
     func cmdKeypadApplicationMode ()
     {
+        guard allowsApplicationKeypadMode else {
+            return
+        }
             applicationKeypad = true
             syncScrollArea ()
     }

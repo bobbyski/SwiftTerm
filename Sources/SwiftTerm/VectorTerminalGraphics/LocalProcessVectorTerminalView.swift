@@ -175,6 +175,20 @@ open class LocalProcessVectorTerminalView: VectorTerminalView, TerminalViewDeleg
         processDelegate?.bell(source: source)
     }
 
+    /// Forward typed link hover changes to the embedding application.
+    open func terminalView(_ source: TerminalView, didHoverLink link: TerminalLink?) {
+        processDelegate?.terminalView(self, didHoverLink: link)
+    }
+
+    /// Forward typed link activation to the embedding application.
+    open func terminalView(_ source: TerminalView, didRequestOpenLink link: TerminalLink) {
+        if let processDelegate {
+            processDelegate.terminalView(self, didRequestOpenLink: link)
+        } else if let url = URL(string: link.target) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     /// Called by ``LocalProcess`` when the child process exits.
     open func processTerminated(_ source: LocalProcess, exitCode: Int32?) {
         vtgSession.discardPendingFrame()

@@ -5740,7 +5740,13 @@ open class Terminal {
             value = 0
         }
         if release {
-            value |= releaseFlag
+            if button == 4 || button == 5 {
+                // Wheel buttons have no release events; avoid preserving a
+                // stale scroll code when a host synthesizes a release.
+                value = 3
+            } else {
+                value |= releaseFlag
+            }
         }
         if mouseMode.sendsModifiers() {
             if shift {
@@ -5958,6 +5964,8 @@ open class Terminal {
         }
 
         let text: String
+        let displayedText: String
+        let parameters: [String: String]
         let row: Int
         let range: Range<Int>
         let isExplicit: Bool
@@ -6009,6 +6017,21 @@ open class Terminal {
         return linkMatch(at: location, mode: mode)?.text
     }
 
+    /// Returns a typed hyperlink or implicit link at the provided location.
+    public func terminalLink(at location: LinkLookupLocation, mode: LinkLookupMode) -> TerminalLink?
+    {
+        guard let match = linkMatch(at: location, mode: mode) else {
+            return nil
+        }
+        return TerminalLink(
+            target: match.text,
+            displayedText: match.displayedText,
+            kind: match.isExplicit ? .explicit : .implicit,
+            parameters: match.parameters,
+            ranges: match.rowRanges.map { TerminalLinkRange(row: $0.row, columns: $0.range) }
+        )
+    }
+
     func getDisplayText (start: Position, end: Position) -> String
     {
         getText(start: start, end: end, buffer: displayBuffer)
@@ -6057,21 +6080,31 @@ open class Terminal {
         guard let payload = line[position.col].getPayload() as? String else {
             return nil
         }
-        return parseHyperlinkPayload(payload)
+        return parseHyperlinkPayload(payload)?.target
     }
 
-    private func parseHyperlinkPayload(_ payload: String) -> String?
+    private func parseHyperlinkPayload(_ payload: String) -> (target: String, parameters: [String: String])?
     {
         let split = payload.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)
         guard split.count > 1 else {
             return nil
         }
-        return String(split[1])
+        var parameters: [String: String] = [:]
+        for pair in split[0].split(separator: ":") {
+            let keyValue = pair.split(separator: "=", maxSplits: 1)
+            if keyValue.count == 2 {
+                parameters[String(keyValue[0])] = String(keyValue[1])
+            }
+        }
+        return (String(split[1]), parameters)
     }
 
     private func explicitLinkMatch(at position: Position, in buffer: Buffer) -> LinkMatch?
     {
         guard let payloadToken = payloadCode(at: position, in: buffer) else {
+            return nil
+        }
+        guard isVisibleLinkCell(at: position, payloadToken: payloadToken, in: buffer) else {
             return nil
         }
         let line = buffer.lines[position.row]
@@ -6080,11 +6113,19 @@ open class Terminal {
             return nil
         }
         var start = position.col
-        while start > 0 && payloadCode(at: Position(col: start - 1, row: position.row), in: buffer) == payloadToken {
+        while start > 0 && isVisibleLinkCell(
+            at: Position(col: start - 1, row: position.row),
+            payloadToken: payloadToken,
+            in: buffer
+        ) {
             start -= 1
         }
         var end = position.col
-        while end < lineLimit && payloadCode(at: Position(col: end, row: position.row), in: buffer) == payloadToken {
+        while end < lineLimit && isVisibleLinkCell(
+            at: Position(col: end, row: position.row),
+            payloadToken: payloadToken,
+            in: buffer
+        ) {
             end += 1
         }
         guard start < end else {
@@ -6092,15 +6133,82 @@ open class Terminal {
         }
         let rawPayload = line[position.col].getPayload() as? String
             ?? line[max(0, position.col - 1)].getPayload() as? String
-        guard let payload = rawPayload, let url = parseHyperlinkPayload(payload) else {
+        guard let payload = rawPayload, let parsed = parseHyperlinkPayload(payload) else {
             return nil
         }
+        var rowRanges = [LinkMatch.RowRange(row: position.row, range: start..<end)]
+        var previousRow = position.row
+        while rowRanges.first?.range.lowerBound == 0, previousRow > 0,
+              buffer.lines[previousRow].isWrapped {
+            previousRow -= 1
+            let previousLine = buffer.lines[previousRow]
+            let previousLimit = min(cols, previousLine.count)
+            guard previousLimit > 0,
+                  isVisibleLinkCell(
+                      at: Position(col: previousLimit - 1, row: previousRow),
+                      payloadToken: payloadToken,
+                      in: buffer
+                  )
+            else {
+                break
+            }
+            var previousStart = previousLimit - 1
+            while previousStart > 0,
+                  isVisibleLinkCell(
+                      at: Position(col: previousStart - 1, row: previousRow),
+                      payloadToken: payloadToken,
+                      in: buffer
+                  ) {
+                previousStart -= 1
+            }
+            rowRanges.insert(.init(row: previousRow, range: previousStart..<previousLimit), at: 0)
+        }
+
+        var nextRow = position.row
+        var nextEnd = end
+        while nextEnd == min(cols, buffer.lines[nextRow].count),
+              nextRow + 1 < buffer.lines.count,
+              buffer.lines[nextRow + 1].isWrapped {
+            nextRow += 1
+            let nextLine = buffer.lines[nextRow]
+            let nextLimit = min(cols, nextLine.count)
+            guard nextLimit > 0,
+                  isVisibleLinkCell(
+                      at: Position(col: 0, row: nextRow),
+                      payloadToken: payloadToken,
+                      in: buffer
+                  )
+            else {
+                break
+            }
+            nextEnd = 0
+            while nextEnd < nextLimit,
+                  isVisibleLinkCell(
+                      at: Position(col: nextEnd, row: nextRow),
+                      payloadToken: payloadToken,
+                      in: buffer
+                  ) {
+                nextEnd += 1
+            }
+            rowRanges.append(.init(row: nextRow, range: 0..<nextEnd))
+        }
+
+        let displayedText = rowRanges.map { rowRange in
+            buffer.lines[rowRange.row].translateToString(
+                startCol: rowRange.range.lowerBound,
+                endCol: rowRange.range.upperBound,
+                skipNullCellsFollowingWide: true,
+                characterProvider: getCharacter
+            )
+        }.joined()
         return LinkMatch(
-            text: url,
+            text: parsed.target,
+            displayedText: displayedText,
+            parameters: parsed.parameters,
             row: position.row,
             range: start..<end,
             isExplicit: true,
-            rowRanges: [.init(row: position.row, range: start..<end)]
+            rowRanges: rowRanges
         )
     }
 
@@ -6179,6 +6287,8 @@ open class Terminal {
 
             return LinkMatch(
                 text: String(lineMap.text[textRange]),
+                displayedText: String(lineMap.text[textRange]),
+                parameters: [:],
                 row: lineMap.targetRow,
                 range: rowStart..<rowEnd,
                 isExplicit: false,
@@ -6210,6 +6320,19 @@ open class Terminal {
             }
         }
         return nil
+    }
+
+    private func isVisibleLinkCell(
+        at position: Position,
+        payloadToken: UInt16,
+        in buffer: Buffer
+    ) -> Bool {
+        guard payloadCode(at: position, in: buffer) == payloadToken else {
+            return false
+        }
+        let line = buffer.lines[position.row]
+        let cell = line[position.col]
+        return cell.code != 0 || (position.col > 0 && line[position.col - 1].width == 2)
     }
 
     private struct GhosttyImplicitCellRef {

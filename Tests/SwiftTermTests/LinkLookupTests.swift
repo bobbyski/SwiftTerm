@@ -42,6 +42,43 @@ final class LinkLookupTests: TerminalDelegate {
         #expect(link == "https://example.com")
     }
 
+    @Test func testTypedExplicitLinkIncludesMetadataAndRange() {
+        let terminal = Terminal(delegate: self, options: TerminalOptions(cols: 10, rows: 1))
+        terminal.feed(text: "abc")
+
+        let atom = TinyAtom.lookup(value: "id=docs:role=help;https://example.com")!
+        let line = terminal.displayBuffer.lines[0]
+        var cd = line[1]
+        cd.setPayload(atom: atom)
+        line[1] = cd
+
+        let link = terminal.terminalLink(
+            at: .buffer(Position(col: 1, row: 0)),
+            mode: .explicitOnly
+        )
+        #expect(link?.target == "https://example.com")
+        #expect(link?.displayedText == "b")
+        #expect(link?.kind == .explicit)
+        #expect(link?.parameters == ["id": "docs", "role": "help"])
+        #expect(link?.ranges == [TerminalLinkRange(row: 0, columns: 1..<2)])
+    }
+
+    @Test func testTypedExplicitLinkIncludesWrappedLabelRanges() {
+        let terminal = Terminal(delegate: self, options: TerminalOptions(cols: 8, rows: 3))
+        terminal.feed(text: "\u{1b}]8;id=wrapped;https://example.com\u{1b}\\abcdefghijk\u{1b}]8;;\u{1b}\\")
+
+        let link = terminal.terminalLink(
+            at: .buffer(Position(col: 1, row: 1)),
+            mode: .explicitOnly
+        )
+        #expect(link?.target == "https://example.com")
+        #expect(link?.displayedText == "abcdefghijk")
+        #expect(link?.ranges == [
+            TerminalLinkRange(row: 0, columns: 0..<8),
+            TerminalLinkRange(row: 1, columns: 0..<3)
+        ])
+    }
+
     @Test func testImplicitUrlLookup() {
         let terminal = Terminal(delegate: self, options: TerminalOptions(cols: 40, rows: 1))
         terminal.feed(text: "https://example.com tail")
@@ -68,6 +105,30 @@ final class LinkLookupTests: TerminalDelegate {
 
         let wrappedRowLink = terminal.link(at: .buffer(Position(col: 1, row: 1)), mode: .explicitAndImplicit)
         #expect(wrappedRowLink == url)
+    }
+
+    @Test func testImplicitLookupP95StaysUnderOneMillisecondWithLargeScrollback() {
+        let terminal = Terminal(
+            delegate: self,
+            options: TerminalOptions(cols: 80, rows: 24, scrollback: 10_100)
+        )
+        for index in 0..<10_000 {
+            terminal.feed(text: "history line \(index)\r\n")
+        }
+        terminal.feed(text: "https://example.com/performance")
+        let location = Terminal.LinkLookupLocation.screen(Position(col: 10, row: 23))
+
+        _ = terminal.terminalLink(at: location, mode: .explicitAndImplicit)
+        var samples: [UInt64] = []
+        for _ in 0..<200 {
+            let start = DispatchTime.now().uptimeNanoseconds
+            _ = terminal.terminalLink(at: location, mode: .explicitAndImplicit)
+            samples.append(DispatchTime.now().uptimeNanoseconds - start)
+        }
+        samples.sort()
+        let p95 = samples[Int(Double(samples.count - 1) * 0.95)]
+        print("SwiftTerm implicit-link lookup p95: \(p95) ns")
+        #expect(p95 < 1_000_000)
     }
 
     @Test func testImplicitMatchReportsPerRowRangesAcrossWrap() {

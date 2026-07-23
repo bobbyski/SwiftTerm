@@ -50,6 +50,30 @@ final class VTGHostControllerTests {
         #expect(controller.resizeResponseIfNeeded(canvas: VTGCanvasSize(width: 120, height: 80)) != nil)
     }
 
+    @Test func linkDetectionCommandUpdatesSettingsAndPreservesInvalidColor() {
+        let controller = VTGHostController()
+        let canvas = VTGCanvasSize(width: 100, height: 80)
+
+        _ = controller.process([command("linkDetection", [
+            "enabled": "0",
+            "decorate": "0",
+            "color": "#ff00aa"
+        ])], canvas: canvas)
+
+        #expect(!controller.linkDetectionSettings.isEnabled)
+        #expect(!controller.linkDetectionSettings.decoratesLinks)
+        #expect(controller.linkDetectionSettings.color == VTGColor(hex: "#ff00aa"))
+
+        _ = controller.process([command("linkDetection", [
+            "enabled": "1",
+            "color": "not-a-color"
+        ])], canvas: canvas)
+
+        #expect(controller.linkDetectionSettings.isEnabled)
+        #expect(!controller.linkDetectionSettings.decoratesLinks)
+        #expect(controller.linkDetectionSettings.color == VTGColor(hex: "#ff00aa"))
+    }
+
     private func command(
         _ name: String,
         _ parameters: [String: String] = [:],

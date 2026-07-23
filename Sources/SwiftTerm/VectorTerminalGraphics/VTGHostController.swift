@@ -19,6 +19,8 @@ public final class VTGHostController {
     public internal(set) var sendsMouseEvents = false
     public internal(set) var mouseMode: VTGMouseMode = .click
     public internal(set) var graphicsLayersVisible = true
+    /// Current session-scoped link detection and decoration settings.
+    public internal(set) var linkDetectionSettings = VTGLinkDetectionSettings()
 
     /// Whether a graphics-only offscreen frame is currently buffering VTG
     /// scene mutations.

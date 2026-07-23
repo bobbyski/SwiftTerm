@@ -78,6 +78,28 @@ final class VTGHostSessionTests {
         #expect(responses.last?.contains("_VTG;mouse,type=click") == true)
     }
 
+    @Test func linkDetectionPublishesOnlyActualSettingChanges() {
+        var changes: [VTGLinkDetectionSettings] = []
+        let session = VTGHostSession(
+            canvasProvider: { VTGCanvasSize(width: 100, height: 100) },
+            processRunning: { true },
+            sendResponse: { _ in },
+            sceneDidChange: { _ in },
+            linkDetectionDidChange: { changes.append($0) }
+        )
+        let disabled = TerminalPrivateSequence(
+            kind: .apc,
+            command: Int(UInt8(ascii: "V")),
+            data: Array("TG;linkDetection,enabled=0,decorate=0".utf8)[...]
+        )
+
+        #expect(session.handlePrivateSequence(disabled))
+        #expect(session.handlePrivateSequence(disabled))
+        #expect(changes.count == 1)
+        #expect(changes.first?.isEnabled == false)
+        #expect(changes.first?.decoratesLinks == false)
+    }
+
     @Test func discardPendingFramePublishesVisibleScene() {
         var publishedPrimitiveIDs: [[String]] = []
         let session = VTGHostSession(

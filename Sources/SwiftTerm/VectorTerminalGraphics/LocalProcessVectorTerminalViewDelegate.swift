@@ -1,4 +1,5 @@
 #if os(macOS)
+import AppKit
 import Foundation
 
 /// Delegate for ``LocalProcessVectorTerminalView`` process lifecycle events.
@@ -23,5 +24,24 @@ public protocol LocalProcessVectorTerminalViewDelegate: AnyObject {
 
     /// Called when the child process exits.
     func processTerminated(source: TerminalView, exitCode: Int32?)
+
+    /// Called when the pointer moves onto a link or leaves the current link.
+    func terminalView(_ source: LocalProcessVectorTerminalView, didHoverLink link: TerminalLink?)
+
+    /// Called when the user activates a terminal link.
+    func terminalView(_ source: LocalProcessVectorTerminalView, didRequestOpenLink link: TerminalLink)
+}
+
+public extension LocalProcessVectorTerminalViewDelegate {
+    /// Ignore hover changes by default.
+    func terminalView(_ source: LocalProcessVectorTerminalView, didHoverLink link: TerminalLink?) {}
+
+    /// Open activated links with the system URL handler by default.
+    func terminalView(_ source: LocalProcessVectorTerminalView, didRequestOpenLink link: TerminalLink) {
+        guard let url = URL(string: link.target) else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
 }
 #endif

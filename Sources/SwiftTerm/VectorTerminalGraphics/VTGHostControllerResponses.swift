@@ -44,6 +44,17 @@ extension VTGHostController {
         case "graphicsVisible":
             graphicsLayersVisible = parseEnabled(command.parameters)
             return []
+        case "linkDetection":
+            var settings = linkDetectionSettings
+            settings.isEnabled = parseEnabled(command.parameters)
+            if command.parameters["decorate"] != nil {
+                settings.decoratesLinks = parseEnabled(command.parameters, key: "decorate")
+            }
+            if let rawColor = command.parameters["color"], let color = VTGColor(hex: rawColor) {
+                settings.color = color
+            }
+            linkDetectionSettings = settings
+            return []
         case "resizeEvents":
             sendsResizeEvents = parseEnabled(command.parameters)
             if sendsResizeEvents {
@@ -62,7 +73,15 @@ extension VTGHostController {
     }
 
     private func parseEnabled(_ parameters: [String: String]) -> Bool {
-        let rawValue = parameters["enabled"] ?? parameters["visible"] ?? "0"
+        parseEnabled(parameters, key: "enabled", fallbackKey: "visible")
+    }
+
+    private func parseEnabled(
+        _ parameters: [String: String],
+        key: String,
+        fallbackKey: String? = nil
+    ) -> Bool {
+        let rawValue = parameters[key] ?? fallbackKey.flatMap { parameters[$0] } ?? "0"
         switch rawValue.lowercased() {
         case "1", "true", "yes", "on":
             return true

@@ -148,6 +148,24 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     /// `.explicit` = OSC 8 only, `.implicit` = explicit + implicit fallback, `.none` = off.
     public var linkReporting: LinkReporting = .implicit
 
+    /// Whether detected links are rendered with link-specific decoration.
+    public var linkDecorationEnabled = true {
+        didSet {
+            urlAttributes = [:]
+            terminal.updateFullScreen()
+            queuePendingDisplay()
+        }
+    }
+
+    /// Foreground and underline color used for decorated links.
+    public var linkDecorationColor = VTGColor(red: 59 / 255, green: 130 / 255, blue: 246 / 255) {
+        didSet {
+            urlAttributes = [:]
+            terminal.updateFullScreen()
+            queuePendingDisplay()
+        }
+    }
+
     /// Controls link highlighting and link activation behavior.
     public var linkHighlightMode: LinkHighlightMode = .hover {
         didSet {
@@ -157,7 +175,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         }
     }
 
-    private var lastReportedLink: String?
+    private var lastReportedLink: TerminalLink?
     var commandActive = false
     private var activeCommandKeys: Set<UIKeyboardHIDUsage> = []
     private var pointerInteraction: UIPointerInteraction?
@@ -752,12 +770,6 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
                 return
             }
 
-            let tapHit = calculateTapHit(gesture: gestureRecognizer).grid
-            if let result = linkForClick(at: tapHit, hasCommandModifier: commandActive) {
-                terminalDelegate?.requestOpenLink(source: self, link: result.link, params: result.params)
-                return
-            }
-
             if allowMouseReporting && !shiftBypassesMouseReporting(for: gestureRecognizer) && terminal.mouseMode.sendButtonPress() {
                 sharedMouseEvent(gestureRecognizer: gestureRecognizer, release: false)
 
@@ -765,6 +777,11 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
                     sharedMouseEvent(gestureRecognizer: gestureRecognizer, release: true)
                 }
             } else {
+                let tapHit = calculateTapHit(gesture: gestureRecognizer).grid
+                if let link = linkForClick(at: tapHit, hasCommandModifier: commandActive) {
+                    terminalDelegate?.terminalView(self, didRequestOpenLink: link)
+                    return
+                }
                 if selection.active {
                     selection.selectNone()
                     disableSelectionPanGesture()
@@ -1113,7 +1130,10 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             reportLinkIfNeeded(at: location, modifiers: [], force: true)
             updateLinkHighlightIfNeeded(at: location, modifiers: [.command], force: true)
         case .ended, .cancelled:
-            lastReportedLink = nil
+            if lastReportedLink != nil {
+                lastReportedLink = nil
+                terminalDelegate?.terminalView(self, didHoverLink: nil)
+            }
             if linkHighlightMode == .hover || linkHighlightMode == .hoverWithModifier {
                 let oldRange = linkHighlightRange
                 linkHighlightRange = nil
@@ -1128,7 +1148,10 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     private func reportLinkIfNeeded(at point: CGPoint, modifiers: UIKeyModifierFlags, force: Bool)
     {
         guard linkReporting != .none else {
-            lastReportedLink = nil
+            if lastReportedLink != nil {
+                lastReportedLink = nil
+                terminalDelegate?.terminalView(self, didHoverLink: nil)
+            }
             return
         }
         if !force && !commandActive && !modifiers.contains(.command) {
@@ -1136,9 +1159,10 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         }
         let hit = calculateTapHit(point: point).grid
         let mode: Terminal.LinkLookupMode = linkReporting == .explicit ? .explicitOnly : .explicitAndImplicit
-        let link = terminal.link(at: .buffer(hit), mode: mode)
+        let link = terminal.terminalLink(at: .buffer(hit), mode: mode)
         if link != lastReportedLink {
             lastReportedLink = link
+            terminalDelegate?.terminalView(self, didHoverLink: link)
         }
     }
 
@@ -1161,7 +1185,15 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             return
         }
         let hit = calculateTapHit(point: point).grid
-        let match = terminal.linkMatch(at: .buffer(hit), mode: .explicitAndImplicit)
+        guard linkReporting != .none else {
+            let oldRange = linkHighlightRange
+            linkHighlightRange = nil
+            invalidateLinkHighlight(oldRange: oldRange, newRange: nil)
+            queuePendingDisplay()
+            return
+        }
+        let mode: Terminal.LinkLookupMode = linkReporting == .explicit ? .explicitOnly : .explicitAndImplicit
+        let match = terminal.linkMatch(at: .buffer(hit), mode: mode)
         let newRange = match?.rowRanges
         if newRange != linkHighlightRange {
             let oldRange = linkHighlightRange
@@ -2739,6 +2771,12 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
 // Default implementations for TerminalViewDelegate
 
 extension TerminalViewDelegate {    
+    public func terminalView(_ source: TerminalView, didHoverLink link: TerminalLink?) {}
+
+    public func terminalView(_ source: TerminalView, didRequestOpenLink link: TerminalLink) {
+        requestOpenLink(source: source, link: link.target, params: link.parameters)
+    }
+
     public func bell (source: TerminalView)
     {
         #if os(iOS)

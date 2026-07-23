@@ -20,8 +20,12 @@ final class VTGResponseEncoderFixtureTests {
 
     private func parserFixture(for commandName: String) -> String {
         switch commandName {
-        case "begin", "present", "clear", "capabilities?", "canvas?", "size?", "hitClear", "spriteClear", "startFrame", "endFrame", "cancelFrame":
+        case "begin", "present", "clear", "capabilities?", "canvas?", "size?", "graphicsVisible?", "glyphSize?", "hitClear", "spriteClear", "startFrame", "endFrame", "cancelFrame":
             return commandName
+        case "graphicsVisible":
+            return "graphicsVisible,visible=1"
+        case "linkDetection":
+            return "linkDetection,enabled=1,decorate=1,color=#3b82f6"
         case "delete":
             return "delete,id=shape1"
         case "resizeEvents":

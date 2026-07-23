@@ -128,10 +128,25 @@ Link activation is also gated by `linkHighlightMode`. The reporting mode chooses
 how links are discovered during tracking, while highlight mode decides whether a
 click/tap is allowed to open the link.
 
+Set `linkDecorationEnabled` to keep detection and callbacks active without
+changing terminal text appearance. Set `linkDecorationColor` to the desired
+`VTGColor`; the default is `#3b82f6` blue.
+
+For engine-only lookup, use `Terminal.terminalLink(at:mode:)`. It returns a
+``TerminalLink`` containing the destination, visible label, explicit/implicit
+kind, OSC 8 parameters, and every occupied ``TerminalLinkRange`` across wrapped
+rows. The older `Terminal.link(at:mode:)` remains available when only the target
+string is needed.
+
 ### What happens when the user activates a link
 
-When a click/tap lands on an active link, ``TerminalView`` calls
-``TerminalViewDelegate/requestOpenLink(source:link:params:)``.
+When a click/tap lands on an active link, ``TerminalView`` calls the typed
+`TerminalViewDelegate.terminalView(_:didRequestOpenLink:)` callback. Its default
+implementation forwards to
+``TerminalViewDelegate/requestOpenLink(source:link:params:)``, preserving existing
+delegate behavior. Hover changes use
+`TerminalViewDelegate.terminalView(_:didHoverLink:)`; `nil` means the pointer left
+the current link.
 
 - For explicit OSC 8 hyperlinks, `link` is the hyperlink target and `params`
   contains parsed key/value pairs from the OSC 8 payload (when present).
@@ -149,6 +164,8 @@ When a click/tap lands on an active link, ``TerminalView`` calls
   hovering enables link preview/highlighting and Command-click opens links.
 - If you switch to `.hover`, link activation does not require Command.
 - `.always` and `.alwaysWithModifier` only activate explicit OSC 8 links.
+- VTG and ANSI mouse capture take precedence over link activation. Holding Shift
+  retains SwiftTerm's existing ANSI mouse-reporting bypass for local interaction.
 
 ### iOS and visionOS behavior
 

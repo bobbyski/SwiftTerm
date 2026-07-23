@@ -15,6 +15,7 @@ public final class VTGHostSession {
     public var processRunning: () -> Bool
     public var sendResponse: (String) -> Void
     public var sceneDidChange: (VTGGraphicsScene) -> Void
+    public var linkDetectionDidChange: (VTGLinkDetectionSettings) -> Void
 
     public init(
         controller: VTGHostController = VTGHostController(),
@@ -23,7 +24,8 @@ public final class VTGHostSession {
         glyphSizeProvider: @escaping () -> (width: Double, height: Double)? = { nil },
         processRunning: @escaping () -> Bool,
         sendResponse: @escaping (String) -> Void,
-        sceneDidChange: @escaping (VTGGraphicsScene) -> Void
+        sceneDidChange: @escaping (VTGGraphicsScene) -> Void,
+        linkDetectionDidChange: @escaping (VTGLinkDetectionSettings) -> Void = { _ in }
     ) {
         self.controller = controller
         self.canvasProvider = canvasProvider
@@ -32,6 +34,7 @@ public final class VTGHostSession {
         self.processRunning = processRunning
         self.sendResponse = sendResponse
         self.sceneDidChange = sceneDidChange
+        self.linkDetectionDidChange = linkDetectionDidChange
     }
 
     /// Whether the child process has subscribed to VTG mouse events.
@@ -47,6 +50,11 @@ public final class VTGHostSession {
     /// Whether retained VTG graphics layers are currently rendered.
     public var graphicsLayersVisible: Bool {
         controller.graphicsLayersVisible
+    }
+
+    /// Current host-side link detection and decoration settings.
+    public var linkDetectionSettings: VTGLinkDetectionSettings {
+        controller.linkDetectionSettings
     }
 
     /// Snapshot of the currently visible retained VTG scene.
@@ -71,6 +79,7 @@ public final class VTGHostSession {
     /// Process a SwiftTerm private sequence and send any immediate responses.
     @discardableResult
     public func handlePrivateSequence(_ sequence: TerminalPrivateSequence) -> Bool {
+        let previousLinkSettings = controller.linkDetectionSettings
         guard let responses = controller.handlePrivateSequence(
             sequence,
             canvas: canvasProvider(),
@@ -80,6 +89,9 @@ public final class VTGHostSession {
             return false
         }
         responses.forEach(sendResponse)
+        if controller.linkDetectionSettings != previousLinkSettings {
+            linkDetectionDidChange(controller.linkDetectionSettings)
+        }
         sceneDidChange(controller.scene)
         return true
     }

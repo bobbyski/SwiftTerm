@@ -57,6 +57,12 @@ public protocol TerminalViewDelegate: AnyObject {
      * key and value pairs that were provided
      */
     func requestOpenLink (source: TerminalView, link: String, params: [String:String])
+
+    /// Called when the pointer begins hovering a link or leaves the current link.
+    func terminalView(_ source: TerminalView, didHoverLink link: TerminalLink?)
+
+    /// Called when the user activates a typed terminal link.
+    func terminalView(_ source: TerminalView, didRequestOpenLink link: TerminalLink)
     
     /**
      * This method will be invoked when the host beeps.

@@ -54,10 +54,19 @@ open class VectorTerminalView: TerminalView {
             self.vtgOverlayView.isHidden = !self.areGraphicsLayersVisible
             self.vtgOverlayView.needsDisplay = true
             self.needsDisplay = true
+        },
+        linkDetectionDidChange: { [weak self] settings in
+            self?.applyVTGLinkDetectionSettings(settings)
         }
     )
 
     private var vtgHostIsActive = true
+
+    private func applyVTGLinkDetectionSettings(_ settings: VTGLinkDetectionSettings) {
+        linkReporting = settings.isEnabled ? .implicit : .none
+        linkDecorationEnabled = settings.decoratesLinks
+        linkDecorationColor = settings.color
+    }
 
     public override init(frame: CGRect, font: NSFont?) {
         super.init(frame: frame, font: font)

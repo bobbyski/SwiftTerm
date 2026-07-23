@@ -542,9 +542,16 @@ extension TerminalView {
         }
 
         if withUrl {
+            let linkColor = TTColor(
+                red: CGFloat(linkDecorationColor.red),
+                green: CGFloat(linkDecorationColor.green),
+                blue: CGFloat(linkDecorationColor.blue),
+                alpha: CGFloat(linkDecorationColor.alpha)
+            )
+            nsattr [.foregroundColor] = linkColor
             nsattr [.underlineStyle] = NSUnderlineStyle.single.rawValue
-            nsattr [.underlineColor] = fgColor
-            nsattr [SwiftTermUnderlineStyleKey] = Int(UnderlineStyle.dashed.rawValue)
+            nsattr [.underlineColor] = linkColor
+            nsattr [SwiftTermUnderlineStyleKey] = Int(UnderlineStyle.single.rawValue)
             
             // Add to cache
             urlAttributes [attribute] = nsattr
@@ -782,6 +789,9 @@ extension TerminalView {
 
     func shouldUnderlineLink(row: Int, column: Int, width: Int, cell: CharData) -> Bool
     {
+        guard linkReporting != .none, linkDecorationEnabled else {
+            return false
+        }
         switch linkHighlightMode {
         case .always:
             return cell.hasPayload
@@ -881,20 +891,19 @@ extension TerminalView {
         }
     }
 
-    func linkForClick(at position: Position, hasCommandModifier: Bool) -> (link: String, params: [String:String])?
+    func linkForClick(at position: Position, hasCommandModifier: Bool) -> TerminalLink?
     {
-        guard let match = terminal.linkMatch(at: .buffer(position), mode: .explicitAndImplicit) else {
+        guard linkReporting != .none else {
+            return nil
+        }
+        let mode: Terminal.LinkLookupMode = linkReporting == .explicit ? .explicitOnly : .explicitAndImplicit
+        guard let match = terminal.linkMatch(at: .buffer(position), mode: mode) else {
             return nil
         }
         guard linkVisibleForClick(match: match, hasCommandModifier: hasCommandModifier) else {
             return nil
         }
-        if match.isExplicit,
-           let payload = payloadString(at: position),
-           let (url, params) = urlAndParamsFrom(payload: payload) {
-            return (url, params)
-        }
-        return (match.text, [:])
+        return terminal.terminalLink(at: .buffer(position), mode: mode)
     }
     
     /// Returns the selection range for the specified row, if any.

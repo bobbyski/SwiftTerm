@@ -576,6 +576,11 @@ public class EscapeSequenceParser {
         case 52:   terminal.oscClipboard(data)
         case 104:  terminal.oscResetColor(data)
         case 112:  terminal.tdel?.setCursorColor(source: terminal, color: nil)
+        case 133:
+            // FinalTerm/iTerm2 shell-integration markers (A/B/C/D). SwiftTerm
+            // does not expose semantic prompt state yet, but these standard
+            // markers are recognized and intentionally consumed.
+            break
         case 777:  terminal.oscNotification(data)
         case 1337: terminal.osciTerm2(data)
         default:

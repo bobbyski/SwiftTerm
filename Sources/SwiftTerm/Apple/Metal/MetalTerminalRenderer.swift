@@ -327,7 +327,16 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
             return
         }
 #if os(macOS)
-        rasterizer.fontSmoothing = terminalView.fontSmoothing
+        // Both settings change how every glyph rasterizes, so the cached
+        // bitmaps and the rows built from them have to go when either moves.
+        if rasterizer.fontSmoothing != terminalView.fontSmoothing
+            || rasterizer.antialias != terminalView.antialiasText {
+            rasterizer.fontSmoothing = terminalView.fontSmoothing
+            rasterizer.antialias = terminalView.antialiasText
+            glyphCache.removeAll()
+            rowCache.removeAll()
+            customGlyphCache.removeAll()
+        }
 #endif
         let scale = terminalView.backingScaleFactor()
         view.drawableSize = CGSize(width: view.bounds.width * scale, height: view.bounds.height * scale)
@@ -2828,7 +2837,17 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
     private static func candidateBundles() -> [Bundle] {
         var bundles: [Bundle] = []
         #if SWIFT_PACKAGE
-        bundles.append(Bundle.module)
+        if let resourceURL = Bundle.main.resourceURL,
+           let packagedResources = Bundle(
+               url: resourceURL.appendingPathComponent(
+                   "SwiftTerm_SwiftTerm.bundle",
+                   isDirectory: true
+               )
+           ) {
+            bundles.append(packagedResources)
+        } else {
+            bundles.append(Bundle.module)
+        }
         #endif
         bundles.append(Bundle(for: MetalTerminalRenderer.self))
         bundles.append(Bundle.main)

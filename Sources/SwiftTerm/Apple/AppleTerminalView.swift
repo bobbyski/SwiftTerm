@@ -96,6 +96,27 @@ extension TerminalView {
     }
 #endif
 
+    /// The custom bold foreground color, where the platform view offers one.
+    ///
+    /// Only macOS exposes ``boldTextColor``; iOS keeps the default foreground,
+    /// so glyph mapping asks through here rather than conditionalizing itself.
+    var customBoldForegroundColor: TTColor? {
+        #if os(macOS)
+        return _boldTextColor
+        #else
+        return nil
+        #endif
+    }
+
+    /// Whether glyph drawing should anti-alias. Only macOS makes this settable.
+    var shouldAntialiasGlyphs: Bool {
+        #if os(macOS)
+        return _antialiasText
+        #else
+        return true
+        #endif
+    }
+
     /// Hook for subclasses that need to draw retained graphics in the terminal
     /// text plane.
     ///
@@ -265,7 +286,9 @@ extension TerminalView {
         switch color {
         case .defaultColor:
             if isFg {
-                return nativeForegroundColor
+                // Bold text may carry its own color, but only where the program
+                // did not ask for one of its own.
+                return (isBold ? customBoldForegroundColor : nil) ?? nativeForegroundColor
             } else {
                 return nativeBackgroundColor
             }
@@ -1432,11 +1455,13 @@ extension TerminalView {
                 drawBlockElements(lineInfo.blockElements, lineOrigin: lineOrigin, in: context)
             }
 
-            context.setShouldAntialias(true)
-            context.setAllowsAntialiasing(true)
+            let antialias = shouldAntialiasGlyphs
+            context.setShouldAntialias(antialias)
+            context.setAllowsAntialiasing(antialias)
             #if os(macOS)
-            context.setShouldSmoothFonts(fontSmoothing)
-            context.setAllowsFontSmoothing(fontSmoothing)
+            // Smoothing on top of hard edges would undo the choice.
+            context.setShouldSmoothFonts(fontSmoothing && antialias)
+            context.setAllowsFontSmoothing(fontSmoothing && antialias)
             #endif
 
             // Glyph drawing loop — reuses cached CTLines

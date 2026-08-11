@@ -4,6 +4,9 @@ import CoreText
 
 final class CoreTextGlyphRasterizer {
     var fontSmoothing: Bool = true
+    /// Whether rasterized glyphs are anti-aliased. Cached bitmaps must be
+    /// dropped when this changes, since it alters every glyph already drawn.
+    var antialias: Bool = true
 
     func rasterize(font: CTFont, glyph: CGGlyph) -> GlyphBitmap? {
         var glyphVar = glyph
@@ -42,15 +45,15 @@ final class CoreTextGlyphRasterizer {
                 return false
             }
 
-            context.setAllowsAntialiasing(true)
-            context.setShouldAntialias(true)
-            context.setAllowsFontSubpixelPositioning(true)
-            context.setShouldSubpixelPositionFonts(true)
+            context.setAllowsAntialiasing(antialias)
+            context.setShouldAntialias(antialias)
+            context.setAllowsFontSubpixelPositioning(antialias)
+            context.setShouldSubpixelPositionFonts(antialias)
             context.setAllowsFontSubpixelQuantization(false)
             context.setShouldSubpixelQuantizeFonts(false)
 #if os(macOS)
-            context.setAllowsFontSmoothing(fontSmoothing)
-            context.setShouldSmoothFonts(fontSmoothing)
+            context.setAllowsFontSmoothing(fontSmoothing && antialias)
+            context.setShouldSmoothFonts(fontSmoothing && antialias)
 #else
             context.setAllowsFontSmoothing(false)
             context.setShouldSmoothFonts(false)

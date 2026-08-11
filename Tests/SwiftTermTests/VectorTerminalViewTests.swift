@@ -16,6 +16,33 @@ final class VectorTerminalViewTests {
         #expect(vector.vtgOverlayView.superview === vector)
     }
 
+    @Test func clickingTerminalReturnsKeyboardFocusToIt() throws {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 200),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let view = VectorTerminalView(frame: window.contentView?.bounds ?? .zero)
+        window.contentView = view
+        _ = window.makeFirstResponder(nil)
+        let event = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: NSPoint(x: 20, y: 20),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+
+        view.mouseDown(with: event)
+
+        #expect(window.firstResponder === view)
+    }
+
     @Test func hostFedVTGSequencesUpdateOverlaySceneAndResponses() {
         let view = VectorTerminalView(frame: NSRect(x: 0, y: 0, width: 320, height: 200))
         var responses: [String] = []

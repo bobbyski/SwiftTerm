@@ -168,6 +168,8 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     var cellDimension: CellDimension!
     var caretView: CaretView!
     var _fontSmoothing: Bool = true
+    var _boldTextColor: NSColor?
+    var _antialiasText: Bool = true
     var _lineSpacing: CGFloat = 1.0
     public var terminal: Terminal!
 
@@ -496,6 +498,40 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     /// Controls weather to use high ansi colors, if false terminal will use bold text instead of high ansi colors
     public var useBrightColors: Bool = true
+
+    /// Called before the terminal interprets a key press.
+    ///
+    /// Return true to claim the event — the terminal's own handling, including
+    /// its default escape sequences, is then skipped. Return false, or leave
+    /// this nil, and the key is processed normally.
+    public var keyInterceptor: ((NSEvent) -> Bool)?
+
+    /// Color used for bold text drawn in the default foreground color.
+    ///
+    /// Nil — the default — leaves bold text in ``nativeForegroundColor``. Text
+    /// that carries an explicit ANSI or true color is never overridden, so this
+    /// recolors emphasis without discarding a program's own color choices.
+    public var boldTextColor: NSColor? {
+        get { _boldTextColor }
+        set {
+            _boldTextColor = newValue
+            terminal.updateFullScreen()
+            queuePendingDisplay()
+        }
+    }
+
+    /// Whether glyphs are drawn anti-aliased.
+    ///
+    /// Defaults to true. False gives hard pixel edges, which some users prefer
+    /// for bitmap-style fonts at small sizes.
+    public var antialiasText: Bool {
+        get { _antialiasText }
+        set {
+            _antialiasText = newValue
+            terminal.updateFullScreen()
+            queuePendingDisplay()
+        }
+    }
 
     /// When true, block element (U+2580-U+259F) and box drawing (U+2500-U+257F) characters use custom rendering.
     public var customBlockGlyphs: Bool = true {
@@ -1002,6 +1038,18 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     //
     public override func keyDown(with event: NSEvent) {
         selection.active = false
+
+        // Embedders get first refusal on every key, which is how user-defined
+        // key bindings send their own sequences instead of the built-in one.
+        // Returning true means the event is fully handled.
+        //
+        // Not while a program has asked for enhanced keyboard reporting: it
+        // wants the exact key events, and a binding rewriting them into a
+        // legacy sequence would break precisely the programs that asked.
+        if terminal.keyboardEnhancementFlags.isEmpty, keyInterceptor?(event) == true {
+            return
+        }
+
         let eventFlags = event.modifierFlags
 
         if !terminal.keyboardEnhancementFlags.isEmpty {
@@ -2151,6 +2199,8 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     }
 
     open override func mouseDown(with event: NSEvent) {
+        makeFirstResponder()
+
         if allowMouseReporting && !shiftBypassesMouseReporting(for: event) && terminal.mouseMode.sendButtonPress() {
             sharedMouseEvent(with: event)
             return

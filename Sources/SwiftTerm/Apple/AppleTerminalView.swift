@@ -108,6 +108,18 @@ extension TerminalView {
         #endif
     }
 
+    /// Whether bold text is promoted to the bright half of the palette.
+    ///
+    /// Only macOS makes this settable; elsewhere bold keeps SwiftTerm's
+    /// long-standing promotion.
+    var boldPromotesToBrightColors: Bool {
+        #if os(macOS)
+        return _boldUsesBrightColors
+        #else
+        return true
+        #endif
+    }
+
     /// Whether glyph drawing should anti-alias. Only macOS makes this settable.
     var shouldAntialiasGlyphs: Bool {
         #if os(macOS)
@@ -303,7 +315,10 @@ extension TerminalView {
             // if high - bright colors are enabled we will represent bold text by using more intense colors
             // otherwise we will reduce colors but use bold fonts
             if useBrightColors {
-                midx = ansi < 7 ? (Int (ansi) + (isBold ? 8 : 0)) : Int (ansi)
+                // Bold promotion is its own switch: a program that asked for a
+                // bright color still gets one when promotion is off.
+                let promote = isBold && boldPromotesToBrightColors
+                midx = ansi < 7 ? (Int (ansi) + (promote ? 8 : 0)) : Int (ansi)
             } else {
                 midx = ansi > 7 ? (Int (ansi) - 8) : Int(ansi)
             }

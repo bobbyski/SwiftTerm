@@ -170,6 +170,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     var _fontSmoothing: Bool = true
     var _boldTextColor: NSColor?
     var _antialiasText: Bool = true
+    var _boldUsesBrightColors: Bool = true
     var _lineSpacing: CGFloat = 1.0
     public var terminal: Terminal!
 
@@ -497,7 +498,26 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     }
     
     /// Controls weather to use high ansi colors, if false terminal will use bold text instead of high ansi colors
+    ///
+    /// This is the palette-wide switch: false also pulls colors a program asked
+    /// for explicitly (ANSI 8–15) down to their 0–7 counterparts. To change only
+    /// how *bold* text is colored, use ``boldUsesBrightColors``.
     public var useBrightColors: Bool = true
+
+    /// Whether bold text in ANSI 0–7 is promoted to the matching bright color.
+    ///
+    /// Independent of ``useBrightColors``: turning this off leaves bold text in
+    /// its own color while a program that explicitly asks for a bright color
+    /// still gets one.
+    public var boldUsesBrightColors: Bool {
+        get { _boldUsesBrightColors }
+        set {
+            guard newValue != _boldUsesBrightColors else { return }
+            _boldUsesBrightColors = newValue
+            terminal.updateFullScreen()
+            queuePendingDisplay()
+        }
+    }
 
     /// Called before the terminal interprets a key press.
     ///

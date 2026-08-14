@@ -2218,6 +2218,51 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         event.modifierFlags.contains(.shift) && !terminal.mouseShiftCapture
     }
 
+    /// Sends a synthetic click to the cell at `column`, `row` (both 1-based).
+    ///
+    /// Addressing a *cell* rather than a pixel is what makes this comparable
+    /// between two terminals: the same cell is the same place in the program's
+    /// grid even when the two windows differ in size. Returns false when the
+    /// cell is outside the current grid.
+    ///
+    /// Routed through the normal `mouseDown`/`mouseUp` path on purpose, so it
+    /// exercises the same hit-testing and mouse-reporting the user's own click
+    /// would rather than a shortcut around it.
+    @discardableResult
+    public func synthesizeClick(column: Int, row: Int) -> Bool {
+        guard let cellDimension, let window else { return false }
+        let terminal = getTerminal()
+        guard column >= 1, row >= 1, column <= terminal.cols, row <= terminal.rows else {
+            return false
+        }
+
+        // Centre of the cell, in this view's flipped-from-AppKit coordinates.
+        let x = (Double(column) - 0.5) * cellDimension.width
+        let yFromTop = (Double(row) - 0.5) * cellDimension.height
+        let local = CGPoint(x: x, y: frame.height - yFromTop)
+        let inWindow = convert(local, to: nil)
+
+        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+            guard let event = NSEvent.mouseEvent(
+                with: type,
+                location: inWindow,
+                modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber,
+                context: nil,
+                eventNumber: 0,
+                clickCount: 1,
+                pressure: type == .leftMouseDown ? 1 : 0
+            ) else { return false }
+            if type == .leftMouseDown {
+                mouseDown(with: event)
+            } else {
+                mouseUp(with: event)
+            }
+        }
+        return true
+    }
+
     open override func mouseDown(with event: NSEvent) {
         makeFirstResponder()
 

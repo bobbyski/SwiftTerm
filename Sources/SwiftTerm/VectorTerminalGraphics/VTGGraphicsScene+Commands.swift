@@ -3,7 +3,12 @@ import Foundation
 /// Command dispatch and retained primitive list mutation for the VTG scene.
 extension VTGGraphicsScene {
     /// Apply one parsed VTG command to the retained primitive list.
-    public func apply(_ command: VectorTerminalGraphicsCommand) {
+    ///
+    /// - Returns: Whether the command was recognized. A command this scene does
+    ///   not know is ignored, and reporting that lets a conformance test prove
+    ///   the capability string is not advertising something nothing handles.
+    @discardableResult
+    public func apply(_ command: VectorTerminalGraphicsCommand) -> Bool {
         switch command.name {
         case "begin", "present", "capabilities?":
             break
@@ -80,7 +85,8 @@ extension VTGGraphicsScene {
         case "spriteClear":
             removeAllSpriteAssets()
         default:
-            break
+            return false
         }
+        return true
     }
 }

@@ -105,5 +105,26 @@ public extension VTGResponseEncoder {
         "spriteClear"
     ]
 
+    /// Commands answered by the host controller rather than the retained scene.
+    ///
+    /// Queries and frame control never become primitives, so the scene ignores
+    /// them by design. Naming them here keeps that a stated split rather than a
+    /// hole: conformance can then require every advertised command to be
+    /// handled by the scene *or* declared session-owned, and a new command
+    /// implemented nowhere fails the check.
+    static let sessionCommands = [
+        "canvas?",
+        "size?",
+        "glyphSize?",
+        "graphicsVisible",
+        "graphicsVisible?",
+        "linkDetection",
+        "resizeEvents",
+        "mouseEvents",
+        "startFrame",
+        "endFrame",
+        "cancelFrame"
+    ]
+
     static let plannedCommands: [String] = []
 }

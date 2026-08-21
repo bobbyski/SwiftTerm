@@ -14,6 +14,13 @@ public final class VTGGraphicsScene {
     public internal(set) var defaultLayer = VTGLayerModel.defaultDrawingLayer
     public internal(set) var layersByID: [String: Int] = [:]
     public internal(set) var layerOffsets: [Int: VTGLayerOffset] = [:]
+    /// Layers pinned to a line of text, by layer number.
+    ///
+    /// Unlike `layerOffsets`, which the client owns through `layerScroll`, an
+    /// anchored layer's offset is computed by the terminal from the current
+    /// scroll position — the client says *which line*, the terminal works out
+    /// where that line is now.
+    public internal(set) var layerTextAnchors: [Int: VTGTextAnchor] = [:]
     public internal(set) var layerClips: [Int: VTGLayerClip] = [:]
     public internal(set) var layerAlphas: [Int: Double] = [:]
     public internal(set) var viewportModes: [Int: VTGViewportMode] = [:]
@@ -32,16 +39,21 @@ public final class VTGGraphicsScene {
     public init() {}
 
     public var renderPrimitives: [VTGPrimitive] {
-        primitives.enumerated()
-            .sorted { lhs, rhs in
-                let leftLayer = layer(for: lhs.element)
-                let rightLayer = layer(for: rhs.element)
-                if leftLayer == rightLayer {
-                    return lhs.offset < rhs.offset
-                }
-                return leftLayer < rightLayer
-            }
-            .map(\.element)
+        // Decorate-sort-undecorate. The obvious version calls `layer(for:)`
+        // inside the comparator, which makes this O(n log n) *dictionary
+        // lookups* rather than comparisons — and it runs once per compositing
+        // plane, so three times a frame over the whole scene. Resolving each
+        // primitive's layer once first costs n lookups and leaves the sort
+        // comparing two integers.
+        var decorated: [(layer: Int, order: Int, primitive: VTGPrimitive)] = []
+        decorated.reserveCapacity(primitives.count)
+        for (index, primitive) in primitives.enumerated() {
+            decorated.append((layer(for: primitive), index, primitive))
+        }
+        decorated.sort { lhs, rhs in
+            lhs.layer == rhs.layer ? lhs.order < rhs.order : lhs.layer < rhs.layer
+        }
+        return decorated.map(\.primitive)
     }
 
     /// Return primitives for one broad compositing plane while preserving the

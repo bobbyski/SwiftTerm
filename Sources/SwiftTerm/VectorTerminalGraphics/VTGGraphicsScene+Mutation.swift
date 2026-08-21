@@ -11,6 +11,7 @@ extension VTGGraphicsScene {
         layersByID.removeAll()
         layerOffsets.removeAll()
         layerClips.removeAll()
+        layerTextAnchors.removeAll()
         layerAlphas.removeAll()
         viewportModes.removeAll()
         viewportScales.removeAll()

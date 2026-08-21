@@ -18,6 +18,8 @@ extension VTGGraphicsScene {
             setPrimitiveLayer(command)
         case "layerScroll":
             setLayerScroll(command)
+        case "layerAnchor":
+            setLayerTextAnchor(command)
         case "layerAlpha":
             setLayerAlpha(command)
         case "viewportMode":

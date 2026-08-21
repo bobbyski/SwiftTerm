@@ -176,6 +176,33 @@ open class VectorTerminalView: TerminalView {
         )
     }
 
+    /// Re-places text-anchored layers for the current scroll position.
+    ///
+    /// Called on every scroll and before drawing, because both the buffer
+    /// moving under the view (output) and the view moving over the buffer
+    /// (scrollback) change where an anchored line sits.
+    ///
+    /// Uses ``currentVTGCellSize()`` rather than `cellDimension` directly so
+    /// the offset lands in the same logical space VTG draws in — on a Retina
+    /// display the two differ by the backing scale, and mixing them would
+    /// misplace every anchored layer by that factor.
+    open func updateTextAnchoredGraphics() {
+        guard let cell = currentVTGCellSize() else {
+            return
+        }
+        vtgSession.controller.scene.updateTextAnchoredLayers(
+            topLine: getTerminal().buffer.yDisp,
+            cellHeight: cell.height
+        )
+    }
+
+    /// The absolute buffer line the cursor is on, which is what an anchor
+    /// without an explicit `line=` means: "pin this to where I am now".
+    open func currentAbsoluteLine() -> Int {
+        let buffer = getTerminal().buffer
+        return buffer.yBase + buffer.y
+    }
+
     /// Whether VTG responses/events should be emitted.
     ///
     /// Host-fed views use a simple active flag. Process-backed subclasses

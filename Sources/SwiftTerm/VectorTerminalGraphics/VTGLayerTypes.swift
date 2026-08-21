@@ -68,6 +68,27 @@ public enum VTGCompositingPlane: Equatable {
 }
 
 /// Pixel-space scroll offset for a VTG graphics layer.
+/// Pins a layer's origin to a line of terminal text so its graphics scroll
+/// with the text rather than staying fixed to the viewport.
+///
+/// `line` is an **absolute buffer line** — the same coordinate space as the
+/// buffer's `yDisp` — so it stays meaningful as output pushes text upward and
+/// as the user scrolls back. The layer's y offset is then simply how far that
+/// line currently sits from the top of the view.
+///
+/// The line is retained even once it has scrolled out of view. Nothing is
+/// redrawn for it today — graphics are not kept in the scrollback — but the
+/// location is remembered, which is what a future scrollback-preserving
+/// version would need and what makes returning to a still-visible line exact.
+public struct VTGTextAnchor: Equatable {
+    /// Absolute buffer line the layer's origin is pinned to.
+    public var line: Int
+
+    public init(line: Int) {
+        self.line = line
+    }
+}
+
 public struct VTGLayerOffset: Equatable {
     public var x: Double
     public var y: Double

@@ -304,7 +304,8 @@ struct VTGMetalPrimitiveRenderer {
         }
     }
 
-    private static func appendEllipse(
+    // Internal so a test can prove the fan closes; see VTGMetalEllipseFanTests.
+    static func appendEllipse(
         center: VTGPoint,
         rx: Double,
         ry: Double,
@@ -323,8 +324,22 @@ struct VTGMetalPrimitiveRenderer {
             let angle = (Double(index) / Double(segmentCount)) * Double.pi * 2
             return VTGPoint(x: center.x + cos(angle) * rx, y: center.y + sin(angle) * ry)
         }
-        if let fill {
-            appendTriangleFan(points: [center] + points, color: fill, scale: scale, drawableHeight: drawableHeight, vertices: &vertices)
+        if let fill, let firstRimPoint = points.first {
+            // The rim point is repeated so the fan wraps. `appendTriangleFan`
+            // emits (apex, i, i+1) and stops at the last pair, which is right
+            // for a fan whose apex is a vertex of the shape — but this apex is
+            // the *centre*, so without the repeat the wedge between the last
+            // rim point and the first is never emitted and every filled circle
+            // is missing a 7.5° slice. Only the fill needs it: the stroke's
+            // closed polyline already wraps, and handing it a duplicated point
+            // would just add a zero-length segment.
+            appendTriangleFan(
+                points: [center] + points + [firstRimPoint],
+                color: fill,
+                scale: scale,
+                drawableHeight: drawableHeight,
+                vertices: &vertices
+            )
         }
         if let stroke, lineWidth > 0 {
             appendClosedPolyline(points: points, width: lineWidth, color: stroke, scale: scale, drawableHeight: drawableHeight, vertices: &vertices)

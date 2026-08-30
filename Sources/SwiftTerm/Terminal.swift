@@ -3561,6 +3561,25 @@ open class Terminal {
     //   CSI ? 5 3  n  Locator available, if compiled-in, or
     //   CSI ? 5 0  n  No Locator, if not.
     //
+    /// The cursor column to report, clamped to a column that exists.
+    ///
+    /// Writing into the last column leaves the cursor there with a wrap
+    /// pending, and `buffer.x` holds `cols` to carry that flag. That is
+    /// internal bookkeeping: the cursor is *visibly* in the last column, and
+    /// xterm reports it there.
+    ///
+    /// Reporting `cols + 1` breaks full-screen programs specifically. They ask
+    /// where the cursor is in order to lay themselves out, and a column past
+    /// the right edge is a position they cannot draw at — so the answer is
+    /// wrong exactly when the drawing reaches the edge, and only then.
+    func reportedColumn (origin: Bool) -> Int {
+        let buffer = self.buffer
+        let leftMargin = origin ? buffer.marginLeft : 0
+        let rightMargin = origin ? buffer.marginRight : cols - 1
+        let clamped = min (buffer.x, rightMargin)
+        return max (1, clamped + 1 - leftMargin)
+    }
+
     func cmdDeviceStatus (_ pars: [Int], _ collect: cstring)
     {
         let buffer = self.buffer
@@ -3574,7 +3593,7 @@ open class Terminal {
                 let y = max (1, buffer.y + 1 - (originMode ? buffer.scrollTop : 0))
                 
                 // Need the max, because the cursor could be before the leftMargin
-                let x = max (1, buffer.x + 1 - (originMode ? buffer.marginLeft : 0))
+                let x = reportedColumn (origin: originMode)
                 sendResponse (cc.CSI, "\(y);\(x)R")
             default:
                 break;
@@ -3587,7 +3606,7 @@ open class Terminal {
                 // cursor position
                 let y = buffer.y + 1 - (originMode ? buffer.scrollTop : 0)
                 // Need the max, because the cursor could be before the leftMargin
-                let x = max (1, buffer.x + 1  - (usingMargins () ? buffer.marginLeft : 0))
+                let x = reportedColumn (origin: usingMargins ())
                 sendResponse (cc.CSI, "?\(y);\(x);1R")
             case 15:
                 // Request printer status report, we respond "We are ready"

@@ -191,7 +191,10 @@ open class LocalProcessVectorTerminalView: VectorTerminalView, TerminalViewDeleg
 
     /// Called by ``LocalProcess`` when the child process exits.
     open func processTerminated(_ source: LocalProcess, exitCode: Int32?) {
-        vtgSession.discardPendingFrame()
+        // Nothing is left to read a reply, so stop producing them. A frame in
+        // flight is dropped with them: its acknowledgement is exactly the sort
+        // of stray text that would otherwise land in whatever runs next.
+        vtgSession.mute()
         processDelegate?.processTerminated(source: self, exitCode: exitCode)
     }
 

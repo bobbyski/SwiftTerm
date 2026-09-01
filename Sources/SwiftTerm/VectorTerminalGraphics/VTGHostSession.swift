@@ -108,6 +108,24 @@ public final class VTGHostSession {
         sendResponse(response)
     }
 
+    /// Stops answering the program that has the terminal, and drops any frame
+    /// it left open.
+    ///
+    /// The embedder calls this when the program that was talking VTG is gone.
+    /// A program that exits cleanly says so itself with `detach`, but one
+    /// killed by a signal — Ctrl-C — gets no such chance, and its unanswered
+    /// acknowledgements would be delivered to whatever owns the terminal next.
+    /// That is the shell, and a shell types out what it is given.
+    public func mute() {
+        controller.mute()
+        sceneDidChange(controller.scene)
+    }
+
+    /// Resumes answering, for the next program to take the terminal.
+    public func unmute() {
+        controller.unmute()
+    }
+
     /// Discard any pending graphics-only frame.
     ///
     /// This gives embedders an explicit recovery hook for process teardown and

@@ -24,6 +24,32 @@ open class VectorTerminalView: TerminalView {
     /// `resize`, or mouse responses.
     public var vtgResponseHandler: ((String) -> Void)?
 
+    /// Whether the view has stopped answering VTG commands.
+    public var vectorGraphicsResponsesMuted: Bool {
+        vtgSession.controller.isMuted
+    }
+
+    /// Stops answering VTG commands, and drops any frame left open.
+    ///
+    /// For the case a departing program cannot handle itself. One that exits
+    /// cleanly sends `detach`; one killed by Ctrl-C sends nothing, and its
+    /// unread acknowledgements are then delivered to whatever owns the
+    /// terminal next — the shell — which types them out:
+    ///
+    ///     ❯ omegaclideVTG;frameStarted,id=tuikit-chrome,timeout=250
+    ///
+    /// An embedder that can tell when the foreground program has gone should
+    /// call this then, and ``resumeVectorGraphicsResponses()`` when a new one
+    /// takes over.
+    public func muteVectorGraphicsResponses() {
+        vtgSession.mute()
+    }
+
+    /// Resumes answering VTG commands, for the next program.
+    public func resumeVectorGraphicsResponses() {
+        vtgSession.unmute()
+    }
+
     internal lazy var vtgSession = VTGHostSession(
         canvasProvider: { [weak self] in
             guard let self else {

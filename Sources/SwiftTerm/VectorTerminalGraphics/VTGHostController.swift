@@ -22,6 +22,22 @@ public final class VTGHostController {
     /// Current session-scoped link detection and decoration settings.
     public internal(set) var linkDetectionSettings = VTGLinkDetectionSettings()
 
+    /// Whether the host has stopped answering VTG commands.
+    ///
+    /// A VTG response is only meaningful to the program that asked for it. Once
+    /// that program is gone — it exited, or Ctrl-C killed it before it could
+    /// tidy up — anything still on its way lands on whatever owns the terminal
+    /// next, which is the user's shell. A shell treats those bytes as typed
+    /// input, so a `frameCommitted` acknowledgement ends up spelled out on the
+    /// command line:
+    ///
+    ///     ❯ omegaclideVTG;frameStarted,id=tuikit-chrome,timeout=250
+    ///
+    /// Muting is how the host is told the conversation is over. It keeps
+    /// applying commands — a departing program still wants its `clear` to take
+    /// effect — and simply stops replying.
+    public private(set) var isMuted = false
+
     /// Whether a graphics-only offscreen frame is currently buffering VTG
     /// scene mutations.
     public var hasPendingFrame: Bool {
@@ -62,6 +78,13 @@ public final class VTGHostController {
     ) -> [String] {
         var responses: [String] = []
         for command in commands {
+            // `detach` is the last thing a program says. Handled before the
+            // mute check so it works, and before the command is applied so
+            // nothing else in this batch can un-say it.
+            if command.name == "detach" {
+                mute()
+                continue
+            }
             if let timeoutResponse = expirePendingFrameIfNeeded() {
                 responses.append(timeoutResponse)
             }
@@ -75,7 +98,28 @@ public final class VTGHostController {
             }
             activeScene.apply(command)
         }
-        return responses
+        // Commands still applied above: a program on its way out clears its
+        // graphics, and that has to land. Only the talking back stops.
+        return isMuted ? [] : responses
+    }
+
+    /// Stops answering VTG commands, and abandons any frame in flight.
+    ///
+    /// Called two ways, because a program can leave two ways. A well-behaved
+    /// one says so on the way out — that is the `detach` command. One killed by
+    /// a signal says nothing at all, so the embedding view mutes on its behalf
+    /// when it notices the program is gone.
+    ///
+    /// The pending frame goes too: its acknowledgement is exactly the reply
+    /// that would otherwise be typed into the shell.
+    public func mute() {
+        isMuted = true
+        discardPendingFrame()
+    }
+
+    /// Resumes answering. Called when a new program takes the terminal.
+    public func unmute() {
+        isMuted = false
     }
 
     /// Discard an active pending graphics frame.

@@ -97,6 +97,40 @@ struct VTGMuteTests {
                 "the next program has its own conversation")
     }
 
+    @Test("A probe is answered even after the host guessed the program had gone")
+    func guessDoesNotSilenceTheNextProgram() {
+        let controller = VTGHostController()
+        // What the host does between programs: it saw the shell in the
+        // foreground and assumed nothing was listening.
+        controller.mute()
+
+        // `swift run` builds with the shell in the foreground, so the guess
+        // lands moments before the program it is about to start probes.
+        let answer = process(controller, "VTG;capabilities?")
+        #expect(answer.isEmpty == false,
+                "a program told there are no graphics draws plain cells instead")
+        #expect(controller.isMuted == false, "the command proved the guess wrong")
+    }
+
+    @Test("A goodbye is final, and a stray command does not undo it")
+    func detachOutranksALaterCommand() {
+        let controller = VTGHostController()
+        _ = process(controller, "VTG;detach")
+
+        // Anything still in the pipe when the program said it was done.
+        #expect(process(controller, "VTG;capabilities?").isEmpty,
+                "the program said it was finished; that is not a guess to revisit")
+        #expect(controller.isMuted)
+    }
+
+    @Test("A guess never downgrades a goodbye")
+    func muteDoesNotWeakenDetach() {
+        let controller = VTGHostController()
+        _ = process(controller, "VTG;detach")
+        controller.mute()
+        #expect(process(controller, "VTG;capabilities?").isEmpty)
+    }
+
     @Test("Muting is what the host does when a program is killed")
     func muteCoversTheSignalCase() {
         // Ctrl-C leaves no chance to send `detach`, so the embedding view mutes

@@ -36,7 +36,21 @@ public final class VTGHostController {
     /// Muting is how the host is told the conversation is over. It keeps
     /// applying commands — a departing program still wants its `clear` to take
     /// effect — and simply stops replying.
-    public private(set) var isMuted = false
+    /// Why the host stopped answering, if it has.
+    enum MuteReason {
+        /// The program said it was finished, with `detach`. Its word is final:
+        /// nothing it sends afterwards starts the conversation again.
+        case detached
+        /// The host decided the program was gone — it saw the process end, or
+        /// the shell back in the foreground. That is a guess about something
+        /// the host cannot see directly, so the next command proves it wrong
+        /// and lifts it.
+        case programGone
+    }
+
+    private(set) var muteReason: MuteReason?
+
+    public var isMuted: Bool { muteReason != nil }
 
     /// Whether a graphics-only offscreen frame is currently buffering VTG
     /// scene mutations.
@@ -82,8 +96,20 @@ public final class VTGHostController {
             // mute check so it works, and before the command is applied so
             // nothing else in this batch can un-say it.
             if command.name == "detach" {
-                mute()
+                muteReason = .detached
+                discardPendingFrame()
                 continue
+            }
+
+            // A command arriving is proof a program is there to read the
+            // answer, so a guess that one had gone is wrong and is lifted.
+            //
+            // This matters at startup, which is when the host is most likely
+            // to have guessed wrong: `swift run` leaves the shell in the
+            // foreground while it builds, and a program that probed for
+            // graphics in the moment after that would be told there are none.
+            if muteReason == .programGone {
+                muteReason = nil
             }
             if let timeoutResponse = expirePendingFrameIfNeeded() {
                 responses.append(timeoutResponse)
@@ -113,13 +139,16 @@ public final class VTGHostController {
     /// The pending frame goes too: its acknowledgement is exactly the reply
     /// that would otherwise be typed into the shell.
     public func mute() {
-        isMuted = true
+        // Never downgrades an explicit goodbye to a guess.
+        if muteReason == nil {
+            muteReason = .programGone
+        }
         discardPendingFrame()
     }
 
     /// Resumes answering. Called when a new program takes the terminal.
     public func unmute() {
-        isMuted = false
+        muteReason = nil
     }
 
     /// Discard an active pending graphics frame.

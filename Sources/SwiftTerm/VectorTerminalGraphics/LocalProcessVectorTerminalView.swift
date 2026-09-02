@@ -195,7 +195,33 @@ open class LocalProcessVectorTerminalView: VectorTerminalView, TerminalViewDeleg
         // flight is dropped with them: its acknowledgement is exactly the sort
         // of stray text that would otherwise land in whatever runs next.
         vtgSession.mute()
+        discardPendingHostInput()
         processDelegate?.processTerminated(source: self, exitCode: exitCode)
+    }
+
+    /// Throws away anything the host has written toward the program that has
+    /// not been read yet.
+    ///
+    /// A program that asks the terminal a question and leaves without waiting
+    /// for the answer strands that answer in the pseudo-terminal. It is not
+    /// lost — it is delivered to whatever runs next, which reads it as the
+    /// answer to *its* question:
+    ///
+    ///     program A:  glyphSize?          (exits without reading)
+    ///     program B:  capabilities?       (reads A's glyphSize answer)
+    ///                 "no graphics here"
+    ///
+    /// Nothing program B can do avoids that; the reply is already in its input
+    /// queue before it starts. The terminal is the only party that knows the
+    /// previous program has gone, so the terminal is what clears the queue.
+    ///
+    /// Only the direction toward the program is discarded — `TCOFLUSH` on the
+    /// primary side. What the user typed is on the other queue and is left
+    /// alone.
+    public func discardPendingHostInput() {
+        let descriptor = process.childfd
+        guard descriptor >= 0 else { return }
+        tcflush(descriptor, TCOFLUSH)
     }
 
     /// Feed child process output through the VTG-aware terminal parser.

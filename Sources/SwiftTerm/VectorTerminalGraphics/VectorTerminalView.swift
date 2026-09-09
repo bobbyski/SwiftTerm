@@ -29,6 +29,11 @@ open class VectorTerminalView: TerminalView {
         vtgSession.controller.isMuted
     }
 
+    /// Clears retained graphics and protocol subscriptions for a guest reboot.
+    public func resetVectorGraphicsSession() {
+        vtgSession.resetSession()
+    }
+
     /// Stops answering VTG commands, and drops any frame left open.
     ///
     /// For the case a departing program cannot handle itself. One that exits

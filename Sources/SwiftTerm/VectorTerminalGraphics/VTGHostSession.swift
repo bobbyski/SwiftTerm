@@ -37,6 +37,13 @@ public final class VTGHostSession {
         self.linkDetectionDidChange = linkDetectionDidChange
     }
 
+    /// Clears guest graphics/protocol state and publishes the empty scene.
+    public func resetSession() {
+        controller.resetSession()
+        sceneDidChange(controller.scene)
+        linkDetectionDidChange(controller.linkDetectionSettings)
+    }
+
     /// Whether the child process has subscribed to VTG mouse events.
     public var sendsMouseEvents: Bool {
         controller.sendsMouseEvents

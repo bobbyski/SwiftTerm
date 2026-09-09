@@ -67,6 +67,20 @@ public final class VTGHostController {
         self.now = now
     }
 
+    /// Starts a fresh guest session, clearing retained graphics and subscriptions.
+    /// The user's graphics visibility choice is preserved.
+    public func resetSession() {
+        parser.reset()
+        pendingFrame = nil
+        scene.clear()
+        lastReportedCanvas = nil
+        sendsResizeEvents = false
+        sendsMouseEvents = false
+        mouseMode = .click
+        linkDetectionSettings = VTGLinkDetectionSettings()
+        muteReason = nil
+    }
+
     /// Parse and apply a SwiftTerm private sequence.
     ///
     /// Returns `nil` when the sequence is not VTG. Returns an empty array when

@@ -2200,18 +2200,129 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         terminal.sendEvent(buttonFlags: buttonFlags, x: hit.grid.col, y: screenRow, pixelX: hit.pixels.col, pixelY: hit.pixels.row)
     }
     
+    /// Lines to scroll per autoscroll tick: negative is up into scrollback,
+    /// positive is down, zero is no autoscroll.
     private var autoScrollDelta = 0
+    /// Where the pointer was last seen during a selection drag, in view
+    /// coordinates. Kept because the pointer usually holds *still* above the
+    /// view while the text scrolls under it, and a stationary mouse sends no
+    /// `mouseDragged` — the tick has to re-aim the selection on its own.
+    private var autoScrollPoint: CGPoint?
+    private var autoScrollTimer: Timer?
+    /// Whether the primary button is still down. A seam for tests, which
+    /// cannot hold a real mouse button.
+    var isPrimaryMouseButtonHeld: () -> Bool = { NSEvent.pressedMouseButtons & 1 != 0 }
+
+    /// Seconds between autoscroll ticks. Twenty a second is smooth to watch,
+    /// and with ``calcScrollingVelocity`` a pointer held well clear of the
+    /// view still crosses thousands of lines of scrollback in seconds.
+    static let selectionAutoScrollInterval: TimeInterval = 0.05
+
+    /// How many lines to autoscroll for a drag at `pointY`.
+    ///
+    /// Only while the pointer is *outside* the view — above it scrolls back
+    /// into history, below it scrolls forward. A pointer still on the top or
+    /// bottom row selects that row and nothing more, so a careful drag to
+    /// the edge does not run away.
+    ///
+    /// The further outside, the faster, in whole rows of overshoot.
+    ///
+    /// - Parameters:
+    ///   - pointY: The pointer in this view's own (unflipped) coordinates.
+    ///   - viewHeight: The view's height.
+    ///   - cellHeight: The height of one row.
+    ///   - rows: The terminal's visible row count, which caps the top speed.
+    static func selectionAutoScrollLines (pointY: CGFloat, viewHeight: CGFloat, cellHeight: CGFloat, rows: Int) -> Int
+    {
+        guard cellHeight > 0 else { return 0 }
+        if pointY > viewHeight {
+            let overshoot = Int (((pointY - viewHeight) / cellHeight).rounded(.up))
+            return -scrollingVelocity (delta: overshoot, rows: rows)
+        }
+        if pointY < 0 {
+            let overshoot = Int ((-pointY / cellHeight).rounded(.up))
+            return scrollingVelocity (delta: overshoot, rows: rows)
+        }
+        return 0
+    }
+
+    /// The buffer position a selection drag at `point` should extend to.
+    ///
+    /// Clamped to the rows on screen. Without the clamp a pointer three rows
+    /// above the view extends the selection three rows the user has not seen
+    /// yet, and letting go selects text they never looked at. With it, the
+    /// selection's edge is always the visible edge, and autoscroll is what
+    /// moves it further.
+    private func selectionPosition (at point: CGPoint) -> Position
+    {
+        let hit = calculateMouseHit(at: point).grid
+        let displayBuffer = terminal.displayBuffer
+        let firstVisible = displayBuffer.yDisp
+        let lastVisible = max (firstVisible, min (displayBuffer.yDisp + displayBuffer.rows - 1, displayBuffer.lines.count - 1))
+        return Position (col: hit.col, row: min (max (hit.row, firstVisible), lastVisible))
+    }
+
+    /// Starts, retargets, or stops autoscroll for a drag at `point`.
+    private func updateSelectionAutoScroll (at point: CGPoint)
+    {
+        let lines = Self.selectionAutoScrollLines(
+            pointY: point.y,
+            viewHeight: bounds.height,
+            cellHeight: cellDimension.height,
+            rows: terminal.rows
+        )
+        guard lines != 0 else {
+            stopSelectionAutoScroll()
+            return
+        }
+        autoScrollDelta = lines
+        autoScrollPoint = point
+        guard autoScrollTimer == nil else { return }
+        let timer = Timer (timeInterval: Self.selectionAutoScrollInterval, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+            self.scrollingTimerElapsed (source: timer)
+        }
+        // Common modes, so the ticks keep coming if AppKit enters an event
+        // tracking loop mid-drag.
+        RunLoop.main.add (timer, forMode: .common)
+        autoScrollTimer = timer
+    }
+
+    private func stopSelectionAutoScroll ()
+    {
+        autoScrollTimer?.invalidate()
+        autoScrollTimer = nil
+        autoScrollPoint = nil
+        autoScrollDelta = 0
+    }
+
     // Callback from when the mouseDown autoscrolling timer goes off
     private func scrollingTimerElapsed (source: Timer)
     {
-        if autoScrollDelta == 0 {
+        // The button check is not belt and braces. A subclass may take the
+        // release before it reaches `mouseUp` here — the VTG view does, for
+        // clicks a graphics program claims — and without it this would go on
+        // scrolling a terminal nobody is holding.
+        guard selection.active, autoScrollDelta != 0, let point = autoScrollPoint,
+              isPrimaryMouseButtonHeld() else {
+            stopSelectionAutoScroll()
             return
         }
         if autoScrollDelta < 0 {
-            scrollUp(lines: autoScrollDelta * -1)
+            scrollUp(lines: -autoScrollDelta)
         } else {
-            scrollUp(lines: autoScrollDelta)
+            // This branch used to call scrollUp as well, so a drag below
+            // the view scrolled the wrong way — unnoticed only because no
+            // timer ever ran this code.
+            scrollDown(lines: autoScrollDelta)
         }
+        // The same screen point is a different buffer row after scrolling;
+        // re-aiming at it is what makes the selection follow the text.
+        selection.dragExtend(bufferPosition: selectionPosition(at: point))
+        setNeedsDisplay(bounds)
     }
     
     private func shiftBypassesMouseReporting(for event: NSEvent) -> Bool {
@@ -2321,6 +2432,9 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     var didSelectionDrag: Bool = false
     
     open override func mouseUp(with event: NSEvent) {
+        // First, before any early return: a drag that ends must stop
+        // scrolling, whoever the release is then routed to.
+        stopSelectionAutoScroll()
         if allowMouseReporting && !shiftBypassesMouseReporting(for: event) && terminal.mouseMode.sendButtonRelease() {
             sharedMouseEvent(with: event)
             return
@@ -2373,21 +2487,22 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             }
         }
                 
+        let point = convert(event.locationInWindow, from: nil)
+        let position = selectionPosition(at: point)
         if selection.active {
-            selection.dragExtend(bufferPosition: Position(col: hit.col, row: hit.row))
+            selection.dragExtend(bufferPosition: position)
         } else {
-            selection.setSoftStart(bufferPosition: Position(col: hit.col, row: hit.row))
+            selection.setSoftStart(bufferPosition: position)
             selection.startSelection()
         }
         didSelectionDrag = true
-        autoScrollDelta = 0
-        let screenRow = hit.row - displayBuffer.yDisp
+        // The velocity used to be computed here and then never used: no timer
+        // was ever started, so dragging above the view selected up to the top
+        // row and stopped. Scrollback beyond one screen was unreachable.
         if selection.active {
-            if screenRow <= 0 {
-                autoScrollDelta = calcScrollingVelocity(delta: screenRow * -1) * -1
-            } else if screenRow >= displayBuffer.rows {
-                autoScrollDelta = calcScrollingVelocity(delta: screenRow - displayBuffer.rows)
-            }
+            updateSelectionAutoScroll(at: point)
+        } else {
+            stopSelectionAutoScroll()
         }
         setNeedsDisplay(bounds)
     }
@@ -2582,8 +2697,13 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     private func calcScrollingVelocity (delta: Int) -> Int
     {
+        Self.scrollingVelocity (delta: delta, rows: terminal.rows)
+    }
+
+    static func scrollingVelocity (delta: Int, rows: Int) -> Int
+    {
         if delta > 9 {
-            return max (terminal.rows, 20)
+            return max (rows, 20)
         }
         if delta > 5 {
             return 10

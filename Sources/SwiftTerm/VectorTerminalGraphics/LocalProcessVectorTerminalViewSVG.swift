@@ -27,6 +27,12 @@ extension LocalProcessVectorTerminalView {
                     canvasWidth: Double(canvas.width),
                     canvasHeight: Double(canvas.height)
                 ))
+                if vtgSession.graphicsLayersVisible, let page = vtgSession.pageMode?.visiblePage {
+                    context.appendRawSVG(page.makeSVGFragment(
+                        canvasWidth: Double(canvas.width),
+                        canvasHeight: Double(canvas.height)
+                    ))
+                }
             }
             let fileURL = try writeSVGSnapshot(svg, to: url)
             print("VectorTerminal SVG snapshot: \(fileURL.path)")

@@ -127,4 +127,34 @@ public extension VTGResponseEncoder {
     ]
 
     static let plannedCommands: [String] = []
+
+    /// VTG Page Mode features, advertised as `page=`.
+    ///
+    /// Page mode and rich text are advertised through their own fields rather
+    /// than `commands`: a client gates on `page=` before `pageBegin`, and a
+    /// host that cannot composite pages yet (the GL host, today) simply omits
+    /// the field instead of promising commands it would draw nothing for.
+    static let defaultPageFeatures = [
+        "buffers2", "layers", "scroll", "grow", "transparent", "viewport",
+        "reference", "hit", "userScroll", "promptMark"
+    ]
+
+    /// Rich text features, advertised as `text=`.
+    static let defaultTextFeatures = ["style", "styled", "attr", "box", "measure", "fonts"]
+
+    /// Commands behind `page=`. Answered by the host controller.
+    static let pageModeCommands = [
+        "pageBegin", "pageEnd", "pageTarget",
+        "pageOpen", "pageShow", "pageHide", "pageSelect", "pageClose", "pageClear",
+        "pageResize", "pageBackground", "pageAlpha", "pageViewport",
+        "pageScroll", "pageScrollBy", "pageScrollTo", "pageScrollMode",
+        "pageLayerAdd", "pageLayerSelect", "pageLayerClear", "pageLayerRemove",
+        "pageLayerOrder", "pageLayerAlpha", "pageLayerVisible", "pageLayerOffset",
+        "pageLayerCache", "pageLayerCopy",
+        "page?", "pageState?", "pageLimits?", "windowCanvas?"
+    ]
+
+    /// Commands behind `text=`. The first four are scene primitives; the
+    /// queries are answered by the host controller.
+    static let richTextCommands = ["textStyle", "styledText", "attrText", "textBox", "textMeasure?", "fonts?"]
 }

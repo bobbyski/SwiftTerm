@@ -19,7 +19,10 @@ extension VTGHostController {
         let viewportPosition = canvas.flatMap {
             scene.viewportMousePosition(at: point, canvasWidth: Double($0.width), canvasHeight: Double($0.height))
         }
-        let hit = canvas.flatMap {
+        // A visible page floats above the base scene, so its hit regions win.
+        let pagePosition = canvas.flatMap { pagePoint(for: point, canvas: $0) }
+        let pageHit = canvas.flatMap { self.pageHit(at: point, canvas: $0) }
+        let hit = pageHit?.region ?? canvas.flatMap {
             scene.hitRegion(at: point, canvasWidth: Double($0.width), canvasHeight: Double($0.height))
         } ?? scene.hitRegion(at: point)
         return VTGResponseEncoder.mouse(
@@ -37,7 +40,11 @@ extension VTGHostController {
                 targetID: hit?.target,
                 viewportLayer: viewportPosition?.layer,
                 virtualX: viewportPosition.map { Int($0.x.rounded(.down)) },
-                virtualY: viewportPosition.map { Int($0.y.rounded(.down)) }
+                virtualY: viewportPosition.map { Int($0.y.rounded(.down)) },
+                pageID: pagePosition?.page.id,
+                pageX: pagePosition.map { Int($0.x.rounded(.down)) },
+                pageY: pagePosition.map { Int($0.y.rounded(.down)) },
+                pageLayer: pageHit?.layer.id
             )
         )
     }

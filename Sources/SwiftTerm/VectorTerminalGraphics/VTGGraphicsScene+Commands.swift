@@ -86,6 +86,10 @@ extension VTGGraphicsScene {
             }
         case "spriteClear":
             removeAllSpriteAssets()
+        case "textStyle":
+            defineTextStyle(command)
+        case "styledText", "attrText", "textBox":
+            upsertRichText(command)
         default:
             return false
         }

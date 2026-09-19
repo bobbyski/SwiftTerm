@@ -31,6 +31,14 @@ extension VTGResponseEncoder {
         if let targetID = event.targetID {
             fields.append(("target", targetID))
         }
+        if let pageID = event.pageID, let pageX = event.pageX, let pageY = event.pageY {
+            fields.append(("page", pageID))
+            fields.append(("pageX", String(pageX)))
+            fields.append(("pageY", String(pageY)))
+            if let pageLayer = event.pageLayer {
+                fields.append(("pageLayer", pageLayer))
+            }
+        }
         return apc("mouse", fields)
     }
 

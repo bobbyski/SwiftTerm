@@ -16,6 +16,10 @@ open class VectorTerminalView: TerminalView {
     /// Transparent retained-graphics overlay drawn above the terminal text.
     public let vtgOverlayView = VTGOverlayView(frame: .zero)
 
+    /// The visible VTG Page Mode page, composited above the overlay.
+    public let vtgPageView = VTGPageView(frame: .zero)
+    private var vtgPageStacking: VTGPageStacking = .all
+
     /// Optional response sink for VTG queries and host-generated events.
     ///
     /// Local-process terminals send VTG responses back to the child process.
@@ -84,6 +88,7 @@ open class VectorTerminalView: TerminalView {
             self.vtgOverlayView.scene = scene
             self.vtgOverlayView.isHidden = !self.areGraphicsLayersVisible
             self.vtgOverlayView.needsDisplay = true
+            self.refreshVTGPageView()
             self.needsDisplay = true
         },
         linkDetectionDidChange: { [weak self] settings in
@@ -167,7 +172,44 @@ open class VectorTerminalView: TerminalView {
         vtgSession.setGraphicsLayersVisible(isVisible)
         vtgOverlayView.isHidden = !isVisible
         vtgOverlayView.needsDisplay = true
+        refreshVTGPageView()
         needsDisplay = true
+    }
+
+    /// Whether a program currently has VTG Page Mode active.
+    public var isVectorGraphicsPageModeActive: Bool {
+        vtgSession.pageMode != nil
+    }
+
+    /// End VTG Page Mode on the user's behalf — the escape hatch for a page
+    /// left over the terminal. The program, if it is still running, is told
+    /// with `pageEnded,reason=host`.
+    public func dismissVectorGraphicsPage() {
+        vtgSession.endPageMode(reason: "host")
+    }
+
+    /// Show the visible page, if any, at the stacking the program asked for.
+    func refreshVTGPageView() {
+        let mode = vtgSession.pageMode
+        let page = mode?.visiblePage
+        vtgPageView.page = page
+        vtgPageView.isHidden = page == nil || !areGraphicsLayersVisible
+        if let stacking = mode?.stacking, stacking != vtgPageStacking {
+            vtgPageStacking = stacking
+            vtgPageView.removeFromSuperview()
+            addSubview(vtgPageView, positioned: stacking == .text ? .below : .above, relativeTo: vtgOverlayView)
+            pinToEdges(vtgPageView)
+        }
+        vtgPageView.needsDisplay = true
+    }
+
+    private func pinToEdges(_ view: NSView) {
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: trailingAnchor),
+            view.topAnchor.constraint(equalTo: topAnchor),
+            view.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
     }
 
     /// Toggle all VTG graphics layers and return the new visibility state.
@@ -253,6 +295,7 @@ open class VectorTerminalView: TerminalView {
     open override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         vtgOverlayView.frame = bounds
+        vtgPageView.frame = bounds
         notifyVTGResizeIfNeeded()
     }
 
@@ -260,6 +303,8 @@ open class VectorTerminalView: TerminalView {
         super.resizeSubviews(withOldSize: oldSize)
         vtgOverlayView.frame = bounds
         vtgOverlayView.needsDisplay = true
+        vtgPageView.frame = bounds
+        vtgPageView.needsDisplay = true
         notifyVTGResizeIfNeeded()
     }
 
@@ -295,8 +340,24 @@ open class VectorTerminalView: TerminalView {
             vtgOverlayView.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
 
+        vtgPageView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(vtgPageView, positioned: .above, relativeTo: vtgOverlayView)
+        pinToEdges(vtgPageView)
+        vtgPageView.isHidden = true
+
         terminal.registerPrivateSequenceHandler { [weak self] sequence in
             self?.vtgSession.handlePrivateSequence(sequence) ?? false
+        }
+        // A shell prompt mark means the program that opened a page has gone —
+        // the one signal that also works when that program ran over SSH.
+        terminal.semanticPromptObserver = { [weak self] kind in
+            guard kind == UInt8(ascii: "A") || kind == UInt8(ascii: "D") else {
+                return
+            }
+            self?.vtgSession.endPageMode(reason: "promptMark")
+        }
+        terminal.fullResetObserver = { [weak self] in
+            self?.vtgSession.endPageMode(reason: "reset")
         }
         vtgOverlayView.isHidden = !areGraphicsLayersVisible
     }

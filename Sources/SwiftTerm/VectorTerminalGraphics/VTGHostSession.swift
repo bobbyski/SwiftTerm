@@ -105,6 +105,13 @@ public final class VTGHostSession {
 
     /// Send a resize event when the child subscribed and the canvas changed.
     public func notifyResizeIfNeeded(force: Bool = false) {
+        let pageResponses = controller.pageWindowResizeResponses(canvas: canvasProvider())
+        if !pageResponses.isEmpty {
+            if processRunning(), !controller.isMuted {
+                pageResponses.forEach(sendResponse)
+            }
+            sceneDidChange(controller.scene)
+        }
         guard let response = controller.resizeResponseIfNeeded(
             canvas: canvasProvider(),
             force: force,
@@ -131,6 +138,44 @@ public final class VTGHostSession {
     /// Resumes answering, for the next program to take the terminal.
     public func unmute() {
         controller.unmute()
+    }
+
+    /// VTG Page Mode state, or `nil` when no program has entered page mode.
+    public var pageMode: VTGPageModeState? {
+        controller.pageMode
+    }
+
+    /// End page mode on the host's initiative — a dismiss command, a shell
+    /// prompt returning, or a terminal reset. Does nothing when page mode is
+    /// not active.
+    public func endPageMode(reason: String) {
+        guard controller.isPageModeActive else {
+            return
+        }
+        let responses = controller.dismissPageMode(reason: reason, canvas: canvasProvider())
+        if processRunning() {
+            responses.forEach(sendResponse)
+        }
+        sceneDidChange(controller.scene)
+    }
+
+    /// Offer a wheel or trackpad gesture to the visible page. Returns whether
+    /// page mode consumed it; when it did not, it should reach the program as
+    /// an ordinary scroll event.
+    public func handlePageUserScroll(at point: VTGPoint, deltaX: Double, deltaY: Double) -> Bool {
+        guard let responses = controller.pageUserScrollResponse(
+            at: point,
+            deltaX: deltaX,
+            deltaY: deltaY,
+            canvas: canvasProvider()
+        ) else {
+            return false
+        }
+        if processRunning(), !controller.isMuted {
+            responses.forEach(sendResponse)
+        }
+        sceneDidChange(controller.scene)
+        return true
     }
 
     /// Discard any pending graphics-only frame.

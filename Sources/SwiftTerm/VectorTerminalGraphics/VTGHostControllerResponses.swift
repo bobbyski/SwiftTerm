@@ -14,11 +14,12 @@ extension VTGHostController {
         guard canvas.width > 0, canvas.height > 0 else {
             return nil
         }
-        guard force || canvas != lastReportedCanvas else {
+        let reported = reportedCanvas(for: canvas)
+        guard force || reported != lastReportedCanvas else {
             return nil
         }
-        lastReportedCanvas = canvas
-        return VTGResponseEncoder.resize(canvas: canvas)
+        lastReportedCanvas = reported
+        return VTGResponseEncoder.resize(canvas: reported)
     }
 
     func responsesForCommand(
@@ -31,9 +32,9 @@ extension VTGHostController {
         case "capabilities?":
             return [VTGResponseEncoder.capabilities(canvas: canvas, renderer: renderer)]
         case "canvas?":
-            return [VTGResponseEncoder.canvasResponse(commandName: "canvas", canvas: canvas)]
+            return [VTGResponseEncoder.canvasResponse(commandName: "canvas", canvas: reportedCanvas(for: canvas))]
         case "size?":
-            return [VTGResponseEncoder.canvasResponse(commandName: "size", canvas: canvas)]
+            return [VTGResponseEncoder.canvasResponse(commandName: "size", canvas: reportedCanvas(for: canvas))]
         case "graphicsVisible?":
             return [VTGResponseEncoder.graphicsVisible(isVisible: graphicsLayersVisible)]
         case "glyphSize?":
@@ -58,8 +59,9 @@ extension VTGHostController {
         case "resizeEvents":
             sendsResizeEvents = parseEnabled(command.parameters)
             if sendsResizeEvents {
-                lastReportedCanvas = canvas
-                return [VTGResponseEncoder.resize(canvas: canvas)]
+                let reported = reportedCanvas(for: canvas)
+                lastReportedCanvas = reported
+                return [VTGResponseEncoder.resize(canvas: reported)]
             }
             lastReportedCanvas = nil
             return []

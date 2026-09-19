@@ -27,6 +27,12 @@ public struct VTGMouseEventPayload: Equatable {
     public var viewportLayer: Int?
     public var virtualX: Int?
     public var virtualY: Int?
+    /// VTG Page Mode: the visible page under the pointer, and the point in
+    /// page space. Appended after every existing field.
+    public var pageID: String?
+    public var pageX: Int?
+    public var pageY: Int?
+    public var pageLayer: String?
 
     public init(
         type: String,
@@ -42,7 +48,11 @@ public struct VTGMouseEventPayload: Equatable {
         targetID: String? = nil,
         viewportLayer: Int? = nil,
         virtualX: Int? = nil,
-        virtualY: Int? = nil
+        virtualY: Int? = nil,
+        pageID: String? = nil,
+        pageX: Int? = nil,
+        pageY: Int? = nil,
+        pageLayer: String? = nil
     ) {
         self.type = type
         self.button = button
@@ -58,5 +68,9 @@ public struct VTGMouseEventPayload: Equatable {
         self.viewportLayer = viewportLayer
         self.virtualX = virtualX
         self.virtualY = virtualY
+        self.pageID = pageID
+        self.pageX = pageX
+        self.pageY = pageY
+        self.pageLayer = pageLayer
     }
 }

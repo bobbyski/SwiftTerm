@@ -18,35 +18,44 @@ public enum VTGResponseEncoder {
         colors: [String] = defaultColors,
         commands: [String] = defaultCommands,
         planned: [String] = plannedCommands,
-        events: [String] = defaultEvents
+        events: [String] = defaultEvents,
+        pageFeatures: [String] = defaultPageFeatures,
+        textFeatures: [String] = defaultTextFeatures
     ) -> String {
-        apc(
-            "capabilities",
-            [
-                ("protocol", protocolName),
-                ("schema", capabilitiesSchema),
-                ("version", version),
-                ("renderer", renderer),
-                ("canvasWidth", String(canvas.width)),
-                ("canvasHeight", String(canvas.height)),
-                ("commands", commands.joined(separator: "|")),
-                ("planned", planned.joined(separator: "|")),
-                ("primitives", primitives.joined(separator: "|")),
-                ("underText", underTextPrimitives.joined(separator: "|")),
-                ("formats", formats.joined(separator: "|")),
-                ("raster", rasterFeatures.joined(separator: "|")),
-                ("sprites", spriteFeatures.joined(separator: "|")),
-                ("layers", VTGLayerModel.advertisedRange),
-                ("defaultLayer", String(VTGLayerModel.defaultDrawingLayer)),
-                ("textPlane", "reserved"),
-                ("layerScroll", "true"),
-                ("layerAlpha", "1-4"),
-                ("clip", "layer-rect"),
-                ("hit", "rect-layered"),
-                ("events", events.joined(separator: "|")),
-                ("colors", colors.joined(separator: "|"))
-            ]
-        )
+        var fields: [(String, String)] = [
+            ("protocol", protocolName),
+            ("schema", capabilitiesSchema),
+            ("version", version),
+            ("renderer", renderer),
+            ("canvasWidth", String(canvas.width)),
+            ("canvasHeight", String(canvas.height)),
+            ("commands", commands.joined(separator: "|")),
+            ("planned", planned.joined(separator: "|")),
+            ("primitives", primitives.joined(separator: "|")),
+            ("underText", underTextPrimitives.joined(separator: "|")),
+            ("formats", formats.joined(separator: "|")),
+            ("raster", rasterFeatures.joined(separator: "|")),
+            ("sprites", spriteFeatures.joined(separator: "|")),
+            ("layers", VTGLayerModel.advertisedRange),
+            ("defaultLayer", String(VTGLayerModel.defaultDrawingLayer)),
+            ("textPlane", "reserved"),
+            ("layerScroll", "true"),
+            ("layerAlpha", "1-4"),
+            ("clip", "layer-rect"),
+            ("hit", "rect-layered"),
+            ("events", events.joined(separator: "|")),
+            ("colors", colors.joined(separator: "|"))
+        ]
+        // Appended after every existing field, so readers of the older shape
+        // see exactly what they always did up to here.
+        if !pageFeatures.isEmpty {
+            fields.append(("page", pageFeatures.joined(separator: "|")))
+            fields.append(("pageMaxLayers", String(VTGPage.maximumLayers)))
+        }
+        if !textFeatures.isEmpty {
+            fields.append(("text", textFeatures.joined(separator: "|")))
+        }
+        return apc("capabilities", fields)
     }
 
     /// Encode `VTG;canvas?` or `VTG;size?` responses.

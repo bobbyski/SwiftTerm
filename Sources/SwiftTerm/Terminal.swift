@@ -1086,6 +1086,13 @@ open class Terminal {
         parser.oscHandlers [code] = handler
     }
 
+    /// Called with the marker byte (`A`, `B`, `C`, or `D`) of each OSC 133
+    /// shell-integration mark the terminal receives.
+    public var semanticPromptObserver: ((UInt8) -> Void)?
+
+    /// Called after `ESC c` (RIS) has reset the terminal.
+    public var fullResetObserver: (() -> Void)?
+
     /// Registers a generic private sequence handler.
     ///
     /// Handlers are called for unhandled OSC sequences and for APC sequences
@@ -5491,6 +5498,7 @@ open class Terminal {
     {
             parser.reset ()
             resetToInitialState ()
+            fullResetObserver? ()
     }
             
     //

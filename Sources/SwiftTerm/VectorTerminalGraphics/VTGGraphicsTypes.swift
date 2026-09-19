@@ -18,6 +18,8 @@ public enum VTGPrimitive: Equatable {
     case text(id: String, x: Double, y: Double, value: String, color: VTGColor, size: Double)
     case image(id: String, x: Double, y: Double, width: Double, height: Double, format: String, data: Data, base64: String, filter: VTGSpriteFilter)
     case sprite(id: String, assetID: String, x: Double, y: Double, rotation: Double, scale: Double, anchorX: Double, anchorY: Double)
+    /// Styled, attributed, or boxed text (`styledText`, `attrText`, `textBox`).
+    case richText(VTGRichText)
 
     public var id: String {
         switch self {
@@ -35,6 +37,8 @@ public enum VTGPrimitive: Equatable {
              .image(let id, _, _, _, _, _, _, _, _),
              .sprite(let id, _, _, _, _, _, _, _):
             return id
+        case .richText(let text):
+            return text.id
         }
     }
 }

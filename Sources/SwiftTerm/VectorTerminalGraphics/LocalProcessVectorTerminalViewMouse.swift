@@ -16,8 +16,27 @@ extension LocalProcessVectorTerminalView {
                   self.bounds.contains(self.convert(event.locationInWindow, from: nil)) else {
                 return event
             }
+            if self.handleVTGPageScroll(event) {
+                return nil
+            }
             return self.sendVTGScrollEventToChild(event) ? nil : event
         }
+    }
+
+    /// Scroll a visible VTG page, when its program enabled user scrolling.
+    func handleVTGPageScroll(_ event: NSEvent) -> Bool {
+        guard vtgSession.pageMode?.userScrollEnabled == true else {
+            return false
+        }
+        let point = convert(event.locationInWindow, from: nil)
+        let lineHeight = Double(cellDimension?.height ?? 16)
+        let deltaX = event.hasPreciseScrollingDeltas ? Double(event.scrollingDeltaX) : Double(event.deltaX) * lineHeight
+        let deltaY = event.hasPreciseScrollingDeltas ? Double(event.scrollingDeltaY) : Double(event.deltaY) * lineHeight
+        return vtgSession.handlePageUserScroll(
+            at: VTGPoint(x: Double(point.x), y: Double(bounds.height - point.y)),
+            deltaX: deltaX,
+            deltaY: deltaY
+        )
     }
 
     func handleVTGMouseDown(_ event: NSEvent) -> Bool {

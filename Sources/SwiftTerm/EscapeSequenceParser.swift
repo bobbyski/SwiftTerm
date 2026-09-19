@@ -578,9 +578,12 @@ public class EscapeSequenceParser {
         case 112:  terminal.tdel?.setCursorColor(source: terminal, color: nil)
         case 133:
             // FinalTerm/iTerm2 shell-integration markers (A/B/C/D). SwiftTerm
-            // does not expose semantic prompt state yet, but these standard
-            // markers are recognized and intentionally consumed.
-            break
+            // does not keep semantic prompt state, but an observer can hear
+            // them — VTG Page Mode uses a prompt mark as proof the program
+            // that opened a page has gone.
+            if let kind = data.first {
+                terminal.semanticPromptObserver?(kind)
+            }
         case 777:  terminal.oscNotification(data)
         case 1337: terminal.osciTerm2(data)
         default:

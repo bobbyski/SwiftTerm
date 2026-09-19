@@ -14,6 +14,10 @@ public final class VTGHostController {
     let now: () -> Date
     var lastReportedCanvas: VTGCanvasSize?
     var pendingFrame: PendingFrame?
+    /// VTG Page Mode, between `pageBegin` and `pageEnd`.
+    var pageModeState: VTGPageModeState?
+    /// Whether this batch changed page state that may need coalesced events.
+    var pageScopeTouched = false
 
     public internal(set) var sendsResizeEvents = false
     public internal(set) var sendsMouseEvents = false
@@ -72,7 +76,10 @@ public final class VTGHostController {
     public func resetSession() {
         parser.reset()
         pendingFrame = nil
+        pageModeState = nil
+        pageScopeTouched = false
         scene.clear()
+        scene.textStyles.removeAll()
         lastReportedCanvas = nil
         sendsResizeEvents = false
         sendsMouseEvents = false
@@ -112,6 +119,8 @@ public final class VTGHostController {
             if command.name == "detach" {
                 muteReason = .detached
                 discardPendingFrame()
+                // A page left up by a departing program would cover the shell.
+                pageModeState = nil
                 continue
             }
 
@@ -129,6 +138,10 @@ public final class VTGHostController {
                 responses.append(timeoutResponse)
             }
             responses.append(contentsOf: responsesForCommand(command, canvas: canvas, renderer: renderer, glyphSize: glyphSize))
+            if let pageResponses = handleExtendedCommand(command, canvas: canvas, glyphSize: glyphSize) {
+                responses.append(contentsOf: pageResponses)
+                continue
+            }
             let frameResult = handleFrameCommand(command)
             if let frameResponse = frameResult.response {
                 responses.append(frameResponse)
@@ -136,8 +149,13 @@ public final class VTGHostController {
             if frameResult.handled {
                 continue
             }
+            if let pageResponses = routeDrawingToPage(command) {
+                responses.append(contentsOf: pageResponses)
+                continue
+            }
             activeScene.apply(command)
         }
+        responses.append(contentsOf: flushPageBatchEvents(canvas: canvas))
         // Commands still applied above: a program on its way out clears its
         // graphics, and that has to land. Only the talking back stops.
         return isMuted ? [] : responses
@@ -158,6 +176,16 @@ public final class VTGHostController {
             muteReason = .programGone
         }
         discardPendingFrame()
+        // Nobody is left to take the page down, so the host does.
+        pageModeState = nil
+    }
+
+    /// End page mode on the host's initiative: a dismiss command, a shell
+    /// prompt mark, or a terminal reset. Returns the responses to send, which
+    /// re-report the real canvas to a resize subscriber before `pageEnded`.
+    public func dismissPageMode(reason: String, canvas: VTGCanvasSize?) -> [String] {
+        let responses = endPageMode(reason: reason, canvas: canvas)
+        return isMuted ? [] : responses
     }
 
     /// Resumes answering. Called when a new program takes the terminal.

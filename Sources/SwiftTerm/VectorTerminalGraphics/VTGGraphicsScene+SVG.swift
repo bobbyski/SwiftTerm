@@ -116,6 +116,15 @@ private extension VTGPrimitive {
                 anchorY: anchorY,
                 scene: scene
             )
+
+        case .richText(let text):
+            #if canImport(CoreText)
+            return VTGTextLayout.svgFragment(for: text)
+            #else
+            let color = text.runs.first?.style.resolvedColor ?? .foreground
+            let size = text.runs.first?.style.resolvedSize ?? VTGTextStyle.defaultSize
+            return "<text x=\"\(svgNumber(text.x))\" y=\"\(svgNumber(text.y + size))\" fill=\"\(color.svgColor)\" font-size=\"\(svgNumber(size))\">\(svgEscapedText(text.plainText))</text>"
+            #endif
         }
     }
 }

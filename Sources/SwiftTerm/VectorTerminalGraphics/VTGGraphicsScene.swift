@@ -26,6 +26,9 @@ public final class VTGGraphicsScene {
     public internal(set) var viewportModes: [Int: VTGViewportMode] = [:]
     public internal(set) var viewportScales: [Int: VTGViewportScale] = [:]
     public internal(set) var hitRegions: [String: VTGHitRegion] = [:]
+    /// Named text styles. Shared by reference with snapshots and page layers,
+    /// and deliberately left alone by `clear`: styles are session state.
+    public internal(set) var textStyles = VTGTextStyleRegistry()
     var indexesByID: [String: Int] = [:]
     var nextHitOrder = 0
     let spriteAssetLimit = 256
@@ -115,6 +118,7 @@ public final class VTGGraphicsScene {
         viewportScales = scene.viewportScales
         hitRegions = scene.hitRegions
         nextHitOrder = scene.nextHitOrder
+        textStyles = scene.textStyles
         rebuildIndexes()
     }
 

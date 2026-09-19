@@ -83,7 +83,9 @@ extension VTGGraphicsScene {
         )
     }
 
-    private func bounds(for primitive: VTGPrimitive) -> VTGBounds? {
+    /// Scene-space bounds of a retained primitive, for region clears and page
+    /// growth. `nil` when the primitive has no measurable extent.
+    func bounds(for primitive: VTGPrimitive) -> VTGBounds? {
         switch primitive {
         case .pixel(_, let x, let y, _):
             return VTGBounds(minX: x, minY: y, maxX: x + 1, maxY: y + 1)
@@ -122,6 +124,9 @@ extension VTGGraphicsScene {
                 maxX: x + width * (1 - anchorX),
                 maxY: y + height * (1 - anchorY)
             )
+        case .richText(let text):
+            let box = VTGTextLayout.bounds(for: text)
+            return VTGBounds(minX: box.minX, minY: box.minY, maxX: box.maxX, maxY: box.maxY)
         }
     }
 
@@ -139,7 +144,7 @@ extension VTGGraphicsScene {
     }
 }
 
-private struct VTGBounds {
+struct VTGBounds {
     var minX: Double
     var minY: Double
     var maxX: Double

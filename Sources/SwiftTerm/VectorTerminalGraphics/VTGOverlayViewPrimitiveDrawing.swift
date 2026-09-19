@@ -71,6 +71,9 @@ extension VTGOverlayView {
                 in: context,
                 scene: scene
             )
+
+        case .richText(let text):
+            VTGTextLayout.draw(text, in: context)
         }
     }
 }

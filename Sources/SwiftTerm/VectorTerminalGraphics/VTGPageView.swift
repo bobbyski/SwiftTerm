@@ -31,12 +31,19 @@ public final class VTGPageView: NSView {
         var revision: UInt64
         var size: CGSize
         var image: CGLayer
+        /// Draw pass this raster was last used in, for eviction.
+        var lastUsed: UInt64
     }
     private var layerCaches: [ObjectIdentifier: LayerCache] = [:]
+    private var drawPass: UInt64 = 0
 
     /// Pages larger than this are drawn directly rather than cached, so a
-    /// long growable document does not become a giant bitmap.
-    public static let maximumCachedArea: CGFloat = 4096 * 4096
+    /// long growable document does not become a giant bitmap. Reported to
+    /// applications through `pageLimits?`.
+    public static let maximumCachedArea = CGFloat(VTGPageCacheLimits.maximumArea)
+
+    /// Rasters kept at once. Reported through `pageLimits?`.
+    public static let maximumCachedLayers = VTGPageCacheLimits.maximumLayers
 
     /// How many layers were drawn from the cache in the last pass, and how
     /// many had to be rasterized. For tests and diagnostics.
@@ -97,7 +104,7 @@ public final class VTGPageView: NSView {
         }
 
         let layerCanvas = CGRect(x: 0, y: 0, width: page.width, height: page.height)
-        var usedCaches: Set<ObjectIdentifier> = []
+        drawPass &+= 1
         lastCacheHits = 0
         lastCacheMisses = 0
         for layer in page.orderedLayers where layer.isVisible && layer.alpha > 0 {
@@ -121,7 +128,6 @@ public final class VTGPageView: NSView {
             }
             if (layer.cacheHint || layer.isReadOnly),
                let cached = cachedImage(for: layer.scene, size: layerCanvas.size, like: context) {
-                usedCaches.insert(ObjectIdentifier(layer.scene))
                 // The image was rendered top-left-origin; undo the flip. It
                 // may be larger than this page — the page clip trims it.
                 let rect = CGRect(origin: .zero, size: cached.size)
@@ -141,8 +147,22 @@ public final class VTGPageView: NSView {
             context.endTransparencyLayer()
         }
         context.restoreGState()
-        // Only caches this page still uses are worth their memory.
-        layerCaches = layerCaches.filter { usedCaches.contains($0.key) }
+        evictStaleCaches()
+    }
+
+    /// Keep the rasters this pass used, then the most recently used of the
+    /// rest, up to the advertised limit. A page that is no longer shown keeps
+    /// its raster for a while: the other buffer is about to want it back.
+    private func evictStaleCaches() {
+        layerCaches = layerCaches.filter { $0.value.scene != nil }
+        guard layerCaches.count > Self.maximumCachedLayers else {
+            return
+        }
+        let keep = layerCaches
+            .sorted { $0.value.lastUsed > $1.value.lastUsed }
+            .prefix(Self.maximumCachedLayers)
+            .map(\.key)
+        layerCaches = layerCaches.filter { keep.contains($0.key) }
     }
 
     /// The layer's rasterized scene, re-rendered only when the scene changed
@@ -165,6 +185,7 @@ public final class VTGPageView: NSView {
             if cached.revision == scene.revision,
                cached.size.width >= requested.width,
                cached.size.height >= requested.height {
+                layerCaches[key]?.lastUsed = drawPass
                 lastCacheHits += 1
                 return (cached.image, cached.size)
             }
@@ -184,7 +205,13 @@ public final class VTGPageView: NSView {
         NSGraphicsContext.current = NSGraphicsContext(cgContext: imageContext, flipped: true)
         painter.draw(scene: scene, plane: nil, in: imageContext, bounds: CGRect(origin: .zero, size: size))
         NSGraphicsContext.restoreGraphicsState()
-        layerCaches[key] = LayerCache(scene: scene, revision: scene.revision, size: size, image: image)
+        layerCaches[key] = LayerCache(
+            scene: scene,
+            revision: scene.revision,
+            size: size,
+            image: image,
+            lastUsed: drawPass
+        )
         lastCacheMisses += 1
         return (image, size)
     }

@@ -81,6 +81,17 @@ public final class VTGPageLayer {
     }
 }
 
+/// What a renderer will keep rasterized for `cache=1` and borrowed layers.
+///
+/// Lives here, rather than in the view, so `pageLimits?` can report the same
+/// numbers the compositor actually applies.
+public enum VTGPageCacheLimits {
+    /// Rasters kept at once, across both pages. Least recently drawn go first.
+    public static let maximumLayers = 8
+    /// Pages larger than this are drawn directly rather than rasterized.
+    public static let maximumArea = 4096.0 * 4096.0
+}
+
 /// A page buffer.
 public final class VTGPage {
     public static let maximumLayers = 32
@@ -220,6 +231,56 @@ public final class VTGPage {
         }
     }
 
+    /// A copy of this page for an offscreen frame to draw into.
+    ///
+    /// Layers the page owns are copied, so drawing during the frame cannot be
+    /// seen until it commits. Layers borrowed from the other page keep
+    /// pointing at that page's scene: they are read-only here, and their
+    /// owner's changes are not part of this frame.
+    func copyForFrame() -> VTGPage {
+        let copy = VTGPage(
+            id: id,
+            slot: slot,
+            width: width,
+            height: height,
+            growsWidth: growsWidth,
+            growsHeight: growsHeight,
+            maxWidth: maxWidth,
+            maxHeight: maxHeight,
+            padding: padding,
+            background: background,
+            resizePolicy: resizePolicy,
+            widthFromWindow: widthFromWindow,
+            heightFromWindow: heightFromWindow,
+            textStyles: textStyles
+        )
+        copy.alpha = alpha
+        copy.viewport = viewport
+        copy.scrollX = scrollX
+        copy.scrollY = scrollY
+        copy.selectedLayerID = selectedLayerID
+        copy.nextLayerOrder = nextLayerOrder
+        copy.reportedLimits = reportedLimits
+        copy.assets.replaceContents(with: assets)
+        copy.layers = layers.map { layer in
+            let copied = VTGPageLayer(
+                id: layer.id,
+                z: layer.z,
+                order: layer.order,
+                scene: layer.isReadOnly ? layer.scene : layer.scene.makeSnapshot()
+            )
+            copied.alpha = layer.alpha
+            copied.isVisible = layer.isVisible
+            copied.offset = layer.offset
+            copied.scrollMode = layer.scrollMode
+            copied.cacheHint = layer.cacheHint
+            copied.sourcePageID = layer.sourcePageID
+            copied.sourceLayerID = layer.sourceLayerID
+            return copied
+        }
+        return copy
+    }
+
     /// Size of the visible window onto the page, in canvas pixels.
     func viewportSize(canvas: VTGCanvasSize) -> (width: Double, height: Double) {
         if let viewport {
@@ -274,6 +335,23 @@ public final class VTGPageModeState {
 
     public var targetPage: VTGPage? {
         targetSlot.flatMap(page(in:))
+    }
+
+    /// A copy of the whole of page mode for an offscreen frame to work in.
+    ///
+    /// A frame covers what the program draws, and in page mode that is not
+    /// only the drawing: a frame may open a page, draw it, and show it. All
+    /// of that lands at once when the frame commits, so copying one page is
+    /// not enough — the copy is of both buffers and which is on screen.
+    func copyForFrame() -> VTGPageModeState {
+        let copy = VTGPageModeState(sessionID: sessionID, stacking: stacking)
+        copy.slots = slots.map { $0?.copyForFrame() }
+        copy.visibleSlot = visibleSlot
+        copy.targetSlot = targetSlot
+        copy.drawsToBase = drawsToBase
+        copy.userScrollEnabled = userScrollEnabled
+        copy.userScrollAxis = userScrollAxis
+        return copy
     }
 
     /// The page whose viewport stands in for the canvas in size queries.

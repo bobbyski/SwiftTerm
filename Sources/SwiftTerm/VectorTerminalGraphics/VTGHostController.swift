@@ -14,8 +14,12 @@ public final class VTGHostController {
     let now: () -> Date
     var lastReportedCanvas: VTGCanvasSize?
     var pendingFrame: PendingFrame?
-    /// VTG Page Mode, between `pageBegin` and `pageEnd`.
+    /// VTG Page Mode, between `pageBegin` and `pageEnd`. This is the state
+    /// the renderer shows.
     var pageModeState: VTGPageModeState?
+    /// Page state an open offscreen frame is working in. Commands see this
+    /// one while it exists; `endFrame` makes it the visible state.
+    var framePageModeState: VTGPageModeState?
     /// Whether this batch changed page state that may need coalesced events.
     var pageScopeTouched = false
 
@@ -77,6 +81,7 @@ public final class VTGHostController {
         parser.reset()
         pendingFrame = nil
         pageModeState = nil
+        framePageModeState = nil
         pageScopeTouched = false
         scene.clear()
         scene.textStyles.removeAll()
@@ -121,6 +126,7 @@ public final class VTGHostController {
                 discardPendingFrame()
                 // A page left up by a departing program would cover the shell.
                 pageModeState = nil
+                framePageModeState = nil
                 continue
             }
 
@@ -178,6 +184,7 @@ public final class VTGHostController {
         discardPendingFrame()
         // Nobody is left to take the page down, so the host does.
         pageModeState = nil
+        framePageModeState = nil
     }
 
     /// End page mode on the host's initiative: a dismiss command, a shell
@@ -200,6 +207,7 @@ public final class VTGHostController {
     /// fires. The visible retained scene is left unchanged.
     public func discardPendingFrame() {
         pendingFrame = nil
+        framePageModeState = nil
     }
 
     /// Show or hide all VTG graphics layers without mutating retained objects.

@@ -112,17 +112,37 @@ extension VTGGraphicsScene {
             return VTGBounds(minX: x, minY: y, maxX: x + width, maxY: y + size)
         case .image(_, let x, let y, let width, let height, _, _, _, _):
             return VTGBounds(minX: x, minY: y, maxX: x + width, maxY: y + height)
-        case .sprite(_, let assetID, let x, let y, _, let scale, let anchorX, let anchorY):
+        case .sprite(_, let assetID, let x, let y, let rotation, let scale, let anchorX, let anchorY):
             guard let size = spriteSize(assetID: assetID) else {
                 return nil
             }
             let width = size.width * scale
             let height = size.height * scale
-            return VTGBounds(
+            let unrotated = VTGBounds(
                 minX: x - width * anchorX,
                 minY: y - height * anchorY,
                 maxX: x + width * (1 - anchorX),
                 maxY: y + height * (1 - anchorY)
+            )
+            guard rotation != 0 else {
+                return unrotated
+            }
+            // A rotated sprite covers more than its upright box, which a page
+            // has to grow to fit.
+            let radians = rotation * .pi / 180
+            let cosine = cos(radians), sine = sin(radians)
+            let corners = [
+                (unrotated.minX, unrotated.minY), (unrotated.maxX, unrotated.minY),
+                (unrotated.minX, unrotated.maxY), (unrotated.maxX, unrotated.maxY)
+            ].map { corner -> (Double, Double) in
+                let dx = corner.0 - x, dy = corner.1 - y
+                return (x + dx * cosine - dy * sine, y + dx * sine + dy * cosine)
+            }
+            return VTGBounds(
+                minX: corners.map(\.0).min() ?? unrotated.minX,
+                minY: corners.map(\.1).min() ?? unrotated.minY,
+                maxX: corners.map(\.0).max() ?? unrotated.maxX,
+                maxY: corners.map(\.1).max() ?? unrotated.maxY
             )
         case .richText(let text):
             let box = VTGTextLayout.bounds(for: text)

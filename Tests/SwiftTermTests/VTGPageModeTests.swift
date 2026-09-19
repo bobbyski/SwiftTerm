@@ -315,6 +315,122 @@ struct VTGPageModeDrawingTests {
     }
 }
 
+@Suite("VTG Page Mode frames")
+struct VTGPageModeFrameTests {
+    /// A frame covers the page, because the page is what the program is
+    /// drawing into.
+    @Test func frameHidesPageDrawingUntilCommit() throws {
+        let controller = openController()
+        _ = controller.process([
+            vpm("rect", ["id": "kept", "x": "0", "y": "0", "w": "10", "h": "10"]),
+            vpm("pageShow")
+        ], canvas: canvas)
+        let visible = try #require(controller.pageMode?.visiblePage)
+
+        _ = controller.process([
+            vpm("startFrame", ["id": "f1"]),
+            vpm("rect", ["id": "pending", "x": "20", "y": "20", "w": "10", "h": "10"]),
+            vpm("pageLayerAdd", ["id": "late"])
+        ], canvas: canvas)
+        #expect(visible.layer(id: "1")?.scene.primitives.map(\.id) == ["kept"])
+        #expect(visible.layer(id: "late") == nil)
+        #expect(controller.activePageMode?.targetPage !== visible, "drawing goes to the frame's copy")
+
+        _ = controller.process([vpm("endFrame", ["id": "f1"])], canvas: canvas)
+        let committed = try #require(controller.pageMode?.visiblePage)
+        #expect(committed.layer(id: "1")?.scene.primitives.map(\.id) == ["kept", "pending"])
+        #expect(committed.layer(id: "late") != nil)
+        #expect(controller.pageMode?.targetPage === committed)
+    }
+
+    @Test func cancelDiscardsPageDrawing() throws {
+        let controller = openController()
+        _ = controller.process([
+            vpm("rect", ["id": "kept", "x": "0", "y": "0", "w": "10", "h": "10"]),
+            vpm("pageShow"),
+            vpm("startFrame", ["id": "f1"]),
+            vpm("rect", ["id": "dropped", "x": "0", "y": "0", "w": "10", "h": "10"]),
+            vpm("cancelFrame", ["id": "f1"])
+        ], canvas: canvas)
+        let page = try #require(controller.pageMode?.visiblePage)
+        #expect(page.layer(id: "1")?.scene.primitives.map(\.id) == ["kept"])
+        #expect(controller.pageMode?.targetPage === page)
+    }
+
+    @Test func timeoutDiscardsPageDrawingToo() throws {
+        var currentDate = Date(timeIntervalSince1970: 0)
+        let controller = VTGHostController(now: { currentDate })
+        _ = controller.process([
+            vpm("pageBegin", ["id": "s"]),
+            vpm("pageOpen", ["id": "p1"]),
+            vpm("rect", ["id": "kept", "x": "0", "y": "0", "w": "10", "h": "10"]),
+            vpm("pageShow"),
+            vpm("startFrame", ["id": "f1", "timeout": "10"]),
+            vpm("rect", ["id": "dropped", "x": "0", "y": "0", "w": "10", "h": "10"])
+        ], canvas: canvas)
+        currentDate = currentDate.addingTimeInterval(1)
+        let responses = controller.process([vpm("canvas?")], canvas: canvas)
+        #expect(responses.first == apc("frameTimeout,id=f1,reason=timeout"))
+        let page = try #require(controller.pageMode?.visiblePage)
+        #expect(page.layer(id: "1")?.scene.primitives.map(\.id) == ["kept"])
+    }
+
+    /// Borrowed layers belong to their owner, so a frame does not copy them
+    /// and the owner's drawing still shows through.
+    @Test func borrowedLayersAreNotCopiedByAFrame() throws {
+        let controller = openController()
+        _ = controller.process([
+            vpm("pageLayerAdd", ["id": "bg"]),
+            vpm("rect", ["id": "sky", "x": "0", "y": "0", "w": "10", "h": "10", "layer": "bg"]),
+            vpm("pageShow"),
+            vpm("pageOpen", ["id": "p2"]),
+            vpm("pageLayerCopy", ["id": "bg", "from": "p1", "layer": "bg"]),
+            vpm("startFrame", ["id": "f1"])
+        ], canvas: canvas)
+        let framePage = try #require(controller.activePageMode?.targetPage)
+        let owner = try #require(controller.pageMode?.page(id: "p1")?.layer(id: "bg"))
+        #expect(framePage.layer(id: "bg")?.scene === owner.scene)
+    }
+
+    /// A frame covers page lifecycle too: a page opened, drawn, and shown
+    /// inside one appears only when it commits.
+    @Test func openingAndShowingInsideAFrameLandsAtCommit() throws {
+        let controller = openController()
+        _ = controller.process([
+            vpm("rect", ["id": "first", "x": "0", "y": "0", "w": "10", "h": "10"]),
+            vpm("pageShow"),
+            vpm("startFrame", ["id": "f1"]),
+            vpm("pageOpen", ["id": "p2"]),
+            vpm("rect", ["id": "fresh", "x": "0", "y": "0", "w": "10", "h": "10"]),
+            vpm("pageShow")
+        ], canvas: canvas)
+        #expect(controller.pageMode?.visiblePage?.id == "p1", "the new page is not on screen yet")
+        #expect(controller.pageMode?.page(id: "p2") == nil)
+
+        _ = controller.process([vpm("endFrame", ["id": "f1"])], canvas: canvas)
+        let mode = try #require(controller.pageMode)
+        #expect(mode.visiblePage?.id == "p2")
+        #expect(mode.page(id: "p2")?.layer(id: "1")?.scene.primitives.map(\.id) == ["fresh"])
+        #expect(mode.page(id: "p1")?.layer(id: "1")?.scene.primitives.map(\.id) == ["first"])
+    }
+
+    /// And a cancelled frame leaves no trace of any of it.
+    @Test func cancellingUndoesPageLifecycleToo() throws {
+        let controller = openController()
+        _ = controller.process([
+            vpm("pageShow"),
+            vpm("startFrame", ["id": "f1"]),
+            vpm("pageOpen", ["id": "p2"]),
+            vpm("pageShow"),
+            vpm("cancelFrame", ["id": "f1"])
+        ], canvas: canvas)
+        let mode = try #require(controller.pageMode)
+        #expect(mode.visiblePage?.id == "p1")
+        #expect(mode.page(id: "p2") == nil)
+        #expect(mode.pages.map(\.id) == ["p1"])
+    }
+}
+
 @Suite("VTG Page Mode growth")
 struct VTGPageModeGrowthTests {
     @Test func growableHeightExtendsFixedWidthClips() throws {

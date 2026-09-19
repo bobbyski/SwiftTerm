@@ -259,7 +259,14 @@ extension VTGTextLayout {
             switch text.alignment {
             case .center: dx = (alignmentWidth - visibleWidth) / 2
             case .right: dx = alignmentWidth - visibleWidth
-            case .left, .justify: dx = 0
+            case .left: dx = 0
+            case .justify:
+                // Every line but the last is stretched to the full width.
+                dx = 0
+                if entry.0.line !== positioned.last?.0.line, visibleWidth > 0,
+                   let justified = CTLineCreateJustifiedLine(line.line, 1, Double(alignmentWidth)) {
+                    line.line = justified
+                }
             }
             line.origin = CGPoint(x: originX + max(0, dx), y: originY + entry.1)
             return line

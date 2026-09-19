@@ -6,9 +6,14 @@ import Foundation
 /// only additions a program can observe are the new query commands, which
 /// older hosts ignore, and the rich-text measurement queries.
 extension VTGHostController {
-    /// Page mode state, or `nil` outside `pageBegin` … `pageEnd`.
+    /// Page mode as the renderer sees it: what is on screen now.
     public var pageMode: VTGPageModeState? {
         pageModeState
+    }
+
+    /// Page mode as commands see it — the frame's copy while one is open.
+    var activePageMode: VTGPageModeState? {
+        framePageModeState ?? pageModeState
     }
 
     public var isPageModeActive: Bool {
@@ -71,7 +76,7 @@ extension VTGHostController {
         default:
             break
         }
-        guard let mode = pageModeState else {
+        guard let mode = activePageMode else {
             return [pageRejected(command, reason: "notInPageMode")]
         }
         pageScopeTouched = true
@@ -184,6 +189,11 @@ extension VTGHostController {
         let sessionID = VTGGraphicsScene.isValidTextIdentifier(requested) ? requested : "vpm"
         let stacking = command.parameters["over"].flatMap(VTGPageStacking.init(rawValue:)) ?? .all
         pageModeState = VTGPageModeState(sessionID: sessionID, stacking: stacking)
+        // Entering page mode inside a frame is odd but legal; the frame then
+        // works in a copy like any other page command.
+        if pendingFrame != nil {
+            framePageModeState = pageModeState?.copyForFrame()
+        }
         pageScopeTouched = true
         return [pageEvent("pageBegan", ("id", sessionID), ("version", "1"), ("slots", "2"))]
     }
@@ -199,6 +209,7 @@ extension VTGHostController {
             return []
         }
         pageModeState = nil
+        framePageModeState = nil
         pageScopeTouched = false
         var responses: [String] = []
         if let canvas, sendsResizeEvents, canvas.width > 0, canvas.height > 0 {
@@ -486,7 +497,7 @@ extension VTGHostController {
     /// Send an ordinary scene command to the target page. `nil` when the
     /// command belongs to the base scene as usual.
     func routeDrawingToPage(_ command: VectorTerminalGraphicsCommand) -> [String]? {
-        guard let mode = pageModeState,
+        guard let mode = activePageMode,
               !mode.drawsToBase,
               Self.pageRoutableCommands.contains(command.name) else {
             return nil
@@ -641,7 +652,7 @@ extension VTGHostController {
         }
         pageScopeTouched = false
         var responses: [String] = []
-        if let mode = pageModeState {
+        if let mode = activePageMode {
             for id in mode.grewPageIDs {
                 guard let page = mode.page(id: id) else { continue }
                 responses.append(pageEvent(
@@ -824,7 +835,9 @@ extension VTGHostController {
             ("maxLayers", String(VTGPage.maximumLayers)),
             ("maxW", Self.pageNumber(page?.maxWidth ?? Double(canvas.width) * 16)),
             ("maxH", Self.pageNumber(page?.maxHeight ?? Double(canvas.height) * 16)),
-            ("maxStyles", String(VTGTextStyleRegistry.maximumStyles))
+            ("maxStyles", String(VTGTextStyleRegistry.maximumStyles)),
+            ("maxCacheLayers", String(VTGPageCacheLimits.maximumLayers)),
+            ("maxCacheArea", Self.pageNumber(VTGPageCacheLimits.maximumArea))
         )
     }
 

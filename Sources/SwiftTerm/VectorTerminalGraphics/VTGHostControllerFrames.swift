@@ -30,6 +30,9 @@ extension VTGHostController {
             deadline: now().addingTimeInterval(TimeInterval(timeoutMilliseconds) / 1_000),
             scene: scene.makeSnapshot()
         )
+        // A frame covers whatever the program is drawing into, so in page
+        // mode it covers the pages too.
+        framePageModeState = pageModeState?.copyForFrame()
         return VTGResponseEncoder.frameEvent("frameStarted", id: frameID, timeoutMilliseconds: timeoutMilliseconds)
     }
 
@@ -41,6 +44,10 @@ extension VTGHostController {
             return VTGResponseEncoder.frameEvent("frameRejected", id: frameID(from: command), reason: "idMismatch")
         }
         scene.replaceContents(with: pendingFrame.scene)
+        if let framePageModeState {
+            pageModeState = framePageModeState
+        }
+        framePageModeState = nil
         self.pendingFrame = nil
         return VTGResponseEncoder.frameEvent("frameCommitted", id: pendingFrame.id)
     }
@@ -53,6 +60,7 @@ extension VTGHostController {
             return VTGResponseEncoder.frameEvent("frameRejected", id: frameID(from: command), reason: "idMismatch")
         }
         self.pendingFrame = nil
+        framePageModeState = nil
         return VTGResponseEncoder.frameEvent("frameCanceled", id: pendingFrame.id, reason: "app")
     }
 
@@ -62,6 +70,7 @@ extension VTGHostController {
             return nil
         }
         self.pendingFrame = nil
+        framePageModeState = nil
         return VTGResponseEncoder.frameEvent("frameTimeout", id: pendingFrame.id, reason: "timeout")
     }
 

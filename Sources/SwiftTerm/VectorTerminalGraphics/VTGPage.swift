@@ -289,6 +289,13 @@ public final class VTGPage {
         return (Double(canvas.width), Double(canvas.height))
     }
 
+    /// Set the scroll origin without clamping, for tests and for hosts that
+    /// clamp themselves.
+    func scrollTo(x: Double, y: Double) {
+        scrollX = x
+        scrollY = y
+    }
+
     /// Keep the scroll origin inside the page.
     func clampScroll(canvas: VTGCanvasSize) {
         let view = viewportSize(canvas: canvas)

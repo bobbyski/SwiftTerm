@@ -79,63 +79,57 @@ public final class VTGPageView: NSView {
 
     /// Draw a page into a top-left-origin context whose bounds are the
     /// terminal canvas.
+    ///
+    /// Where the page sits, what it clips to, and how its layers are placed
+    /// all come from ``VTGPage/renderPlan(canvas:)``, the same resolution the
+    /// GL host draws from.
     public func draw(page: VTGPage, in context: CGContext, bounds: CGRect) {
-        let viewportRect = page.viewport.map {
-            CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height)
-        } ?? bounds
-        let pageOrigin = CGPoint(x: viewportRect.minX - page.scrollX, y: viewportRect.minY - page.scrollY)
-        let pageRect = CGRect(origin: pageOrigin, size: CGSize(width: page.width, height: page.height))
-        let visiblePage = pageRect.intersection(viewportRect)
+        let plan = page.renderPlan(canvas: VTGRenderCanvas(width: bounds.width, height: bounds.height))
+        let viewportRect = rect(plan.viewport)
         guard !viewportRect.isEmpty else {
             return
         }
-
-        context.saveGState()
-        context.clip(to: viewportRect)
-        let fadesPage = page.alpha < 1
-        if fadesPage {
-            context.setAlpha(page.alpha)
-            context.beginTransparencyLayer(auxiliaryInfo: nil)
-        }
-
-        if let background = page.background, !visiblePage.isEmpty {
-            context.setFillColor(background.cgColor)
-            context.fill(visiblePage)
-        }
-
-        let layerCanvas = CGRect(x: 0, y: 0, width: page.width, height: page.height)
         drawPass &+= 1
         lastCacheHits = 0
         lastCacheMisses = 0
-        for layer in page.orderedLayers where layer.isVisible && layer.alpha > 0 {
+
+        context.saveGState()
+        context.clip(to: viewportRect)
+        let fadesPage = plan.alpha < 1
+        if fadesPage {
+            context.setAlpha(plan.alpha)
+            context.beginTransparencyLayer(auxiliaryInfo: nil)
+        }
+
+        if let background = plan.background, let visible = plan.visibleRect {
+            context.setFillColor(background.cgColor)
+            context.fill(rect(visible))
+        }
+
+        let layerCanvas = CGRect(x: 0, y: 0, width: page.width, height: page.height)
+        for layerPlan in plan.layers {
             context.saveGState()
-            switch layer.scrollMode {
-            case .page:
-                // Content beyond a fixed axis is clipped at the page edge.
-                guard !visiblePage.isEmpty else {
-                    context.restoreGState()
-                    continue
-                }
-                context.clip(to: visiblePage)
-                context.translateBy(x: pageOrigin.x + layer.offset.x, y: pageOrigin.y + layer.offset.y)
-            case .fixed:
-                context.translateBy(x: viewportRect.minX + layer.offset.x, y: viewportRect.minY + layer.offset.y)
+            if let clip = layerPlan.clip {
+                context.clip(to: rect(clip))
             }
-            let fadesLayer = layer.alpha < 1
+            context.translateBy(x: CGFloat(layerPlan.offset.x), y: CGFloat(layerPlan.offset.y))
+            // The page's own alpha is applied once, around everything.
+            let layerAlpha = fadesPage ? layerPlan.alpha / plan.alpha : layerPlan.alpha
+            let fadesLayer = layerAlpha < 1
             if fadesLayer {
-                context.setAlpha(layer.alpha)
+                context.setAlpha(layerAlpha)
                 context.beginTransparencyLayer(auxiliaryInfo: nil)
             }
-            if (layer.cacheHint || layer.isReadOnly),
-               let cached = cachedImage(for: layer.scene, size: layerCanvas.size, like: context) {
+            if layerPlan.isCacheable,
+               let cached = cachedImage(for: layerPlan.scene, size: layerCanvas.size, like: context) {
                 // The image was rendered top-left-origin; undo the flip. It
                 // may be larger than this page — the page clip trims it.
-                let rect = CGRect(origin: .zero, size: cached.size)
-                context.translateBy(x: 0, y: rect.height)
+                let imageRect = CGRect(origin: .zero, size: cached.size)
+                context.translateBy(x: 0, y: imageRect.height)
                 context.scaleBy(x: 1, y: -1)
-                context.draw(cached.image, in: rect)
+                context.draw(cached.image, in: imageRect)
             } else {
-                painter.draw(scene: layer.scene, plane: nil, in: context, bounds: layerCanvas)
+                painter.draw(scene: layerPlan.scene, plane: nil, in: context, bounds: layerCanvas)
             }
             if fadesLayer {
                 context.endTransparencyLayer()
@@ -148,6 +142,10 @@ public final class VTGPageView: NSView {
         }
         context.restoreGState()
         evictStaleCaches()
+    }
+
+    private func rect(_ clip: VTGLayerClip) -> CGRect {
+        CGRect(x: clip.x, y: clip.y, width: clip.width, height: clip.height)
     }
 
     /// Keep the rasters this pass used, then the most recently used of the

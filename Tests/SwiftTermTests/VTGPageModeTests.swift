@@ -665,6 +665,68 @@ struct VTGPageModeInputTests {
     }
 }
 
+@Suite("VTG Page Mode render plan")
+struct VTGPageRenderPlanTests {
+    /// The plan resolves scroll, layer offsets, clipping and alpha once, in
+    /// canvas coordinates, for whichever backend draws it.
+    @Test func planResolvesScrollOffsetsClipsAndAlpha() throws {
+        let controller = openController(["id": "p1", "h": "2000", "bg": "#101018"])
+        _ = controller.process([
+            vpm("pageAlpha", ["alpha": "0.5"]),
+            vpm("pageViewport", ["x": "100", "y": "50", "w": "400", "h": "300"]),
+            vpm("pageLayerAdd", ["id": "body", "z": "0", "x": "10", "y": "5", "alpha": "0.5"]),
+            vpm("rect", ["id": "r", "x": "0", "y": "0", "w": "50", "h": "50", "layer": "body"]),
+            vpm("pageLayerAdd", ["id": "hud", "z": "9", "scroll": "fixed", "cache": "1"]),
+            vpm("rect", ["id": "bar", "x": "0", "y": "0", "w": "50", "h": "10", "layer": "hud"]),
+            vpm("pageScroll", ["y": "200"])
+        ], canvas: canvas)
+        let page = try #require(controller.pageMode?.targetPage)
+        let plan = page.renderPlan(canvas: VTGRenderCanvas(width: 800, height: 600))
+
+        #expect(plan.viewport == VTGLayerClip(x: 100, y: 50, width: 400, height: 300))
+        // The page is taller than its window, so it fills it.
+        #expect(plan.visibleRect == plan.viewport)
+        #expect(plan.alpha == 0.5)
+        #expect(plan.backgroundPlan?.entries.count == 1)
+
+        let body = try #require(plan.layers.first { $0.layerID == "body" })
+        // viewport origin - scroll + layer offset.
+        #expect(body.offset == VTGLayerOffset(x: 110, y: -145))
+        #expect(body.alpha == 0.25)
+        #expect(!body.isCacheable)
+        // The clip travels with the offset, so it is relative to it.
+        let clip = try #require(body.plan.entries.first?.clip)
+        #expect(clip.x == plan.viewport.x - body.offset.x)
+        #expect(clip.y == plan.viewport.y - body.offset.y)
+        #expect(body.plan.entries.first?.alpha == 0.25)
+
+        let hud = try #require(plan.layers.first { $0.layerID == "hud" })
+        #expect(hud.offset == VTGLayerOffset(x: 100, y: 50), "a fixed layer ignores the scroll")
+        #expect(hud.isCacheable)
+        #expect(plan.layers.map(\.layerID) == ["body", "hud"], "layers come in drawing order")
+    }
+
+    @Test func aPageScrolledOutOfViewPlansNothing() throws {
+        let controller = openController(["id": "p1", "w": "200", "h": "200", "bg": "#101018"])
+        _ = controller.process([
+            vpm("pageViewport", ["x": "0", "y": "0", "w": "800", "h": "600"]),
+            vpm("pageLayerAdd", ["id": "a"]),
+            vpm("rect", ["id": "r", "x": "0", "y": "0", "w": "10", "h": "10", "layer": "a"])
+        ], canvas: canvas)
+        let page = try #require(controller.pageMode?.targetPage)
+        page.scrollTo(x: 0, y: 0)
+        var plan = page.renderPlan(canvas: VTGRenderCanvas(width: 800, height: 600))
+        #expect(plan.visibleRect != nil)
+        #expect(plan.layers.count == 1)
+
+        page.scrollTo(x: 0, y: 5_000)
+        plan = page.renderPlan(canvas: VTGRenderCanvas(width: 800, height: 600))
+        #expect(plan.visibleRect == nil)
+        #expect(plan.layers.isEmpty)
+        #expect(plan.backgroundPlan == nil)
+    }
+}
+
 @Suite("VTG Page Mode export")
 struct VTGPageModeExportTests {
     @Test func svgShowsTheScrolledPage() throws {

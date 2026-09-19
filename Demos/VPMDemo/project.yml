@@ -1,0 +1,39 @@
+# VTG Page Mode demo. Generate and build with Xcode (never `swift build`):
+#
+#   xcodegen generate
+#   xcodebuild -scheme VPMDemo -configuration Release -derivedDataPath <dir> build
+#
+# SwiftTerm comes from this repository's own sources, two levels up, so the
+# demo always runs the page-mode code on the branch it lives on.
+name: VPMDemo
+options:
+  bundleIdPrefix: com.vectorterminal
+  deploymentTarget:
+    macOS: "15.0"
+packages:
+  SwiftTerm:
+    path: ../..
+targets:
+  VPMDemo:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+      - path: vpm-demo.sh
+        buildPhase: resources
+    dependencies:
+      - package: SwiftTerm
+        product: SwiftTerm
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vectorterminal.VPMDemo
+        PRODUCT_NAME: VPMDemo
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: VTG Page Mode Demo
+        INFOPLIST_KEY_NSPrincipalClass: NSApplication
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: NO

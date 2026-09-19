@@ -37,6 +37,24 @@ public final class VTGPageView: NSView {
     private var layerCaches: [ObjectIdentifier: LayerCache] = [:]
     private var drawPass: UInt64 = 0
 
+    /// What each layer cost to draw directly, the last time it was, and at
+    /// which revision. A layer is only worth rasterizing if drawing it costs
+    /// more than blitting it.
+    private struct LayerCost {
+        var seconds: Double
+        var revision: UInt64
+    }
+    private var layerCosts: [ObjectIdentifier: LayerCost] = [:]
+
+    /// Above this, a layer marked `cache=1` (or borrowed) is rasterized.
+    ///
+    /// Measured on a 1200x800 view: a background of 400 circles draws in
+    /// ~1.3 ms and blits in ~2.3 ms, so caching it would cost time; at 4000
+    /// circles it draws in ~13 ms and blits in ~6.7 ms, so caching halves it.
+    /// The crossover is near a millisecond of drawing, and it is measured per
+    /// layer rather than guessed from what the layer contains.
+    public static var rasterizeAboveSeconds = 0.0015
+
     /// Pages larger than this are drawn directly rather than cached, so a
     /// long growable document does not become a giant bitmap. Reported to
     /// applications through `pageLimits?`.
@@ -121,6 +139,7 @@ public final class VTGPageView: NSView {
                 context.beginTransparencyLayer(auxiliaryInfo: nil)
             }
             if layerPlan.isCacheable,
+               isWorthRasterizing(layerPlan.scene),
                let cached = cachedImage(for: layerPlan.scene, size: layerCanvas.size, like: context) {
                 // The image was rendered top-left-origin; undo the flip. It
                 // may be larger than this page — the page clip trims it.
@@ -129,7 +148,12 @@ public final class VTGPageView: NSView {
                 context.scaleBy(x: 1, y: -1)
                 context.draw(cached.image, in: imageRect)
             } else {
+                let start = Date()
                 painter.draw(scene: layerPlan.scene, plane: nil, in: context, bounds: layerCanvas)
+                layerCosts[ObjectIdentifier(layerPlan.scene)] = LayerCost(
+                    seconds: Date().timeIntervalSince(start),
+                    revision: layerPlan.scene.revision
+                )
             }
             if fadesLayer {
                 context.endTransparencyLayer()
@@ -148,11 +172,23 @@ public final class VTGPageView: NSView {
         CGRect(x: clip.x, y: clip.y, width: clip.width, height: clip.height)
     }
 
+    /// Whether this layer costs more to draw than to blit. A layer whose
+    /// content has changed is drawn once more before deciding again.
+    private func isWorthRasterizing(_ scene: VTGGraphicsScene) -> Bool {
+        guard let cost = layerCosts[ObjectIdentifier(scene)], cost.revision == scene.revision else {
+            return false
+        }
+        return cost.seconds > Self.rasterizeAboveSeconds
+    }
+
     /// Keep the rasters this pass used, then the most recently used of the
     /// rest, up to the advertised limit. A page that is no longer shown keeps
     /// its raster for a while: the other buffer is about to want it back.
     private func evictStaleCaches() {
         layerCaches = layerCaches.filter { $0.value.scene != nil }
+        layerCosts = layerCosts.filter { key, _ in
+            layerCaches[key] != nil || layerCosts.count <= Self.maximumCachedLayers * 4
+        }
         guard layerCaches.count > Self.maximumCachedLayers else {
             return
         }

@@ -151,6 +151,27 @@ final class VTGPageViewTests {
         #expect(!view.isVectorGraphicsPageModeActive, "RIS ends page mode")
     }
 
+    /// The shell example in Escape codes.md, byte for byte.
+    @Test func documentedShellExampleWorks() throws {
+        let view = VectorTerminalView(frame: NSRect(x: 0, y: 0, width: 600, height: 300))
+        feed(
+            view,
+            "pageBegin,id=demo",
+            "pageOpen,id=p1,bg=#101018e0",
+            "textStyle,id=h1,font=Georgia,size=32,weight=bold,color=#ffffff",
+            "styledText,id=title,x=40,y=40,style=h1;Page Mode",
+            "textBox,id=body,x=40,y=100,w=420;-:63:Drawn off screen, shown in one step. The terminal runs beneath.",
+            "pageShow"
+        )
+        let page = try #require(view.vtgPageView.page)
+        let ids = page.layer(id: "1")?.scene.primitives.map(\.id)
+        #expect(ids == ["title", "body"])
+        guard case .richText(let body) = try #require(page.layer(id: "1")?.scene.primitives.last) else { return }
+        #expect(body.plainText == "Drawn off screen, shown in one step. The terminal runs beneath.")
+        feed(view, "pageEnd")
+        #expect(!view.isVectorGraphicsPageModeActive)
+    }
+
     @Test func pageEventsReachTheHost() {
         let view = VectorTerminalView(frame: NSRect(x: 0, y: 0, width: 200, height: 100))
         var responses: [String] = []

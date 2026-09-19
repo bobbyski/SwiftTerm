@@ -7,28 +7,31 @@ import Foundation
 public final class VTGGraphicsScene {
     public static let supportedLayerRange = VTGLayerModel.supportedRange
 
-    public internal(set) var primitives: [VTGPrimitive] = []
-    public internal(set) var spriteAssets: [String: VTGSpriteAsset] = [:]
-    public internal(set) var vectorSpriteAssets: [String: VTGVectorSpriteAsset] = [:]
-    public internal(set) var indexedSpriteAssets: [String: VTGIndexedSpriteAsset] = [:]
+    public internal(set) var primitives: [VTGPrimitive] = [] { didSet { revision &+= 1 } }
+    public internal(set) var spriteAssets: [String: VTGSpriteAsset] = [:] { didSet { revision &+= 1 } }
+    public internal(set) var vectorSpriteAssets: [String: VTGVectorSpriteAsset] = [:] { didSet { revision &+= 1 } }
+    public internal(set) var indexedSpriteAssets: [String: VTGIndexedSpriteAsset] = [:] { didSet { revision &+= 1 } }
     public internal(set) var defaultLayer = VTGLayerModel.defaultDrawingLayer
-    public internal(set) var layersByID: [String: Int] = [:]
-    public internal(set) var layerOffsets: [Int: VTGLayerOffset] = [:]
+    public internal(set) var layersByID: [String: Int] = [:] { didSet { revision &+= 1 } }
+    public internal(set) var layerOffsets: [Int: VTGLayerOffset] = [:] { didSet { revision &+= 1 } }
     /// Layers pinned to a line of text, by layer number.
     ///
     /// Unlike `layerOffsets`, which the client owns through `layerScroll`, an
     /// anchored layer's offset is computed by the terminal from the current
     /// scroll position — the client says *which line*, the terminal works out
     /// where that line is now.
-    public internal(set) var layerTextAnchors: [Int: VTGTextAnchor] = [:]
-    public internal(set) var layerClips: [Int: VTGLayerClip] = [:]
-    public internal(set) var layerAlphas: [Int: Double] = [:]
-    public internal(set) var viewportModes: [Int: VTGViewportMode] = [:]
-    public internal(set) var viewportScales: [Int: VTGViewportScale] = [:]
+    public internal(set) var layerTextAnchors: [Int: VTGTextAnchor] = [:] { didSet { revision &+= 1 } }
+    public internal(set) var layerClips: [Int: VTGLayerClip] = [:] { didSet { revision &+= 1 } }
+    public internal(set) var layerAlphas: [Int: Double] = [:] { didSet { revision &+= 1 } }
+    public internal(set) var viewportModes: [Int: VTGViewportMode] = [:] { didSet { revision &+= 1 } }
+    public internal(set) var viewportScales: [Int: VTGViewportScale] = [:] { didSet { revision &+= 1 } }
     public internal(set) var hitRegions: [String: VTGHitRegion] = [:]
     /// Named text styles. Shared by reference with snapshots and page layers,
     /// and deliberately left alone by `clear`: styles are session state.
     public internal(set) var textStyles = VTGTextStyleRegistry()
+    /// Increases whenever anything that affects drawing changes, so a
+    /// renderer can keep a rasterized copy until the scene moves on.
+    public internal(set) var revision: UInt64 = 0
     var indexesByID: [String: Int] = [:]
     var nextHitOrder = 0
     let spriteAssetLimit = 256

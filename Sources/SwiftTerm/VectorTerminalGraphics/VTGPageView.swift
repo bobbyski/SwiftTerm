@@ -20,6 +20,29 @@ public final class VTGPageView: NSView {
     /// primitive exactly as the base scene does. Never added to a window.
     private let painter = VTGOverlayView(frame: .zero)
 
+    /// Rasterized layers, keyed by the scene they show.
+    ///
+    /// A layer marked `cache=1`, or borrowed from the other page by
+    /// reference, is drawn once and reused until its scene's revision moves.
+    /// Keyed by scene, so a background shared by both pages is rasterized
+    /// once for both — the point of sharing it.
+    private struct LayerCache {
+        weak var scene: VTGGraphicsScene?
+        var revision: UInt64
+        var size: CGSize
+        var image: CGLayer
+    }
+    private var layerCaches: [ObjectIdentifier: LayerCache] = [:]
+
+    /// Pages larger than this are drawn directly rather than cached, so a
+    /// long growable document does not become a giant bitmap.
+    public static let maximumCachedArea: CGFloat = 4096 * 4096
+
+    /// How many layers were drawn from the cache in the last pass, and how
+    /// many had to be rasterized. For tests and diagnostics.
+    public private(set) var lastCacheHits = 0
+    public private(set) var lastCacheMisses = 0
+
     public override var isFlipped: Bool {
         true
     }
@@ -74,6 +97,9 @@ public final class VTGPageView: NSView {
         }
 
         let layerCanvas = CGRect(x: 0, y: 0, width: page.width, height: page.height)
+        var usedCaches: Set<ObjectIdentifier> = []
+        lastCacheHits = 0
+        lastCacheMisses = 0
         for layer in page.orderedLayers where layer.isVisible && layer.alpha > 0 {
             context.saveGState()
             switch layer.scrollMode {
@@ -93,7 +119,18 @@ public final class VTGPageView: NSView {
                 context.setAlpha(layer.alpha)
                 context.beginTransparencyLayer(auxiliaryInfo: nil)
             }
-            painter.draw(scene: layer.scene, plane: nil, in: context, bounds: layerCanvas)
+            if (layer.cacheHint || layer.isReadOnly),
+               let cached = cachedImage(for: layer.scene, size: layerCanvas.size, like: context) {
+                usedCaches.insert(ObjectIdentifier(layer.scene))
+                // The image was rendered top-left-origin; undo the flip. It
+                // may be larger than this page — the page clip trims it.
+                let rect = CGRect(origin: .zero, size: cached.size)
+                context.translateBy(x: 0, y: rect.height)
+                context.scaleBy(x: 1, y: -1)
+                context.draw(cached.image, in: rect)
+            } else {
+                painter.draw(scene: layer.scene, plane: nil, in: context, bounds: layerCanvas)
+            }
             if fadesLayer {
                 context.endTransparencyLayer()
             }
@@ -104,6 +141,52 @@ public final class VTGPageView: NSView {
             context.endTransparencyLayer()
         }
         context.restoreGState()
+        // Only caches this page still uses are worth their memory.
+        layerCaches = layerCaches.filter { usedCaches.contains($0.key) }
+    }
+
+    /// The layer's rasterized scene, re-rendered only when the scene changed
+    /// or the page needs more of it than the raster holds.
+    ///
+    /// Two pages sharing a background are rarely exactly the same size — one
+    /// grows by half a pixel to fit a stroke — so any raster that covers the
+    /// requested area is reused, and a new one is made as large as both.
+    private func cachedImage(
+        for scene: VTGGraphicsScene,
+        size requested: CGSize,
+        like context: CGContext
+    ) -> (image: CGLayer, size: CGSize)? {
+        guard requested.width > 0, requested.height > 0 else {
+            return nil
+        }
+        let key = ObjectIdentifier(scene)
+        var size = CGSize(width: ceil(requested.width), height: ceil(requested.height))
+        if let cached = layerCaches[key], cached.scene === scene {
+            if cached.revision == scene.revision,
+               cached.size.width >= requested.width,
+               cached.size.height >= requested.height {
+                lastCacheHits += 1
+                return (cached.image, cached.size)
+            }
+            size = CGSize(width: max(size.width, cached.size.width), height: max(size.height, cached.size.height))
+        }
+        guard size.width * size.height <= Self.maximumCachedArea else {
+            return nil
+        }
+        guard let image = CGLayer(context, size: size, auxiliaryInfo: nil),
+              let imageContext = image.context else {
+            return nil
+        }
+        // Render top-left-origin, as the rest of VTG draws.
+        imageContext.translateBy(x: 0, y: size.height)
+        imageContext.scaleBy(x: 1, y: -1)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: imageContext, flipped: true)
+        painter.draw(scene: scene, plane: nil, in: imageContext, bounds: CGRect(origin: .zero, size: size))
+        NSGraphicsContext.restoreGraphicsState()
+        layerCaches[key] = LayerCache(scene: scene, revision: scene.revision, size: size, image: image)
+        lastCacheMisses += 1
+        return (image, size)
     }
 }
 #endif

@@ -151,6 +151,72 @@ final class VTGPageViewTests {
         #expect(!view.isVectorGraphicsPageModeActive, "RIS ends page mode")
     }
 
+    /// A cached layer must look exactly like the same layer drawn directly.
+    @Test func cachedLayersMatchDirectDrawingAndInvalidate() throws {
+        func scene(cache: Bool) throws -> (VectorTerminalView, (width: Int, height: Int, pixels: [UInt8])) {
+            let view = VectorTerminalView(frame: NSRect(x: 0, y: 0, width: 200, height: 120))
+            feed(
+                view,
+                "pageBegin",
+                "pageOpen,id=p1,bg=#000000",
+                "pageLayerAdd,id=bg,cache=\(cache ? 1 : 0)",
+                "rect,id=top,x=0,y=0,w=200,h=20,fill=#ff0000,stroke=none,layer=bg",
+                "circle,id=dot,cx=150,cy=90,r=15,fill=#00ff00,layer=bg",
+                "styledText,id=t,x=10,y=40,size=24,color=#ffffff,layer=bg;Cache",
+                "pageShow"
+            )
+            return (view, try render(view))
+        }
+        let (_, direct) = try scene(cache: false)
+        let (view, cached) = try scene(cache: true)
+        #expect(view.vtgPageView.lastCacheMisses == 1)
+        var differing = 0
+        for index in stride(from: 0, to: direct.pixels.count, by: 4)
+            where abs(Int(direct.pixels[index]) - Int(cached.pixels[index])) > 8
+                || abs(Int(direct.pixels[index + 1]) - Int(cached.pixels[index + 1])) > 8 {
+            differing += 1
+        }
+        #expect(differing < 20, "\(differing) pixels differ between cached and direct drawing")
+        // Red bar at the top, not the bottom: the cache is not upside down.
+        #expect(pixel(cached, 100, 5).r > 200)
+        #expect(pixel(cached, 100, 115).r < 30)
+
+        _ = try render(view)
+        #expect(view.vtgPageView.lastCacheHits == 1, "an unchanged layer is reused")
+        feed(view, "rect,id=top,x=0,y=0,w=200,h=20,fill=#0000ff,stroke=none,layer=bg")
+        let changed = try render(view)
+        #expect(view.vtgPageView.lastCacheMisses == 1, "a changed scene is redrawn")
+        #expect(pixel(changed, 100, 5).b > 200)
+    }
+
+    /// A background borrowed by reference is one scene, rasterized once for
+    /// whichever page shows it.
+    @Test func borrowedBackgroundIsRasterizedOnce() throws {
+        let view = VectorTerminalView(frame: NSRect(x: 0, y: 0, width: 200, height: 120))
+        feed(
+            view,
+            "pageBegin",
+            "pageOpen,id=f1",
+            "pageLayerAdd,id=bg,z=0,cache=1",
+            "rect,id=sky,x=0,y=0,w=200,h=120,fill=#3366ff,stroke=none,layer=bg",
+            "pageShow"
+        )
+        _ = try render(view)
+        #expect(view.vtgPageView.lastCacheMisses == 1)
+        feed(
+            view,
+            "pageOpen,id=f2",
+            "pageLayerCopy,id=bg,from=f1,layer=bg",
+            "circle,id=ship,cx=50,cy=50,r=5,fill=#ffffff",
+            "pageShow"
+        )
+        let image = try render(view)
+        #expect(view.vtgPageView.lastCacheHits == 1, "the second page reuses the first page's raster")
+        #expect(view.vtgPageView.lastCacheMisses == 0)
+        #expect(pixel(image, 150, 100).b > 200)
+        #expect(pixel(image, 50, 50).r > 200)
+    }
+
     /// The shell example in Escape codes.md, byte for byte.
     @Test func documentedShellExampleWorks() throws {
         let view = VectorTerminalView(frame: NSRect(x: 0, y: 0, width: 600, height: 300))

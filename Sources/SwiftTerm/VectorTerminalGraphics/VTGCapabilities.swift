@@ -136,7 +136,7 @@ public extension VTGResponseEncoder {
     /// the field instead of promising commands it would draw nothing for.
     static let defaultPageFeatures = [
         "buffers2", "layers", "scroll", "grow", "transparent", "viewport",
-        "reference", "hit", "userScroll", "promptMark"
+        "reference", "cache", "hit", "userScroll", "promptMark"
     ]
 
     /// Rich text features, advertised as `text=`.

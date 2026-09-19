@@ -326,7 +326,11 @@ extension VTGTextLayout {
             CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
             if lineRange.length == 0 {
                 // An empty line still takes the height of its break's font.
-                let font = attributed.attribute(.font, at: min(start, length - 1), effectiveRange: nil)
+                let font = attributed.attribute(
+                    NSAttributedString.Key(kCTFontAttributeName as String),
+                    at: min(start, length - 1),
+                    effectiveRange: nil
+                )
                 if let font {
                     let ctFont = font as! CTFont
                     ascent = CTFontGetAscent(ctFont)
@@ -370,7 +374,7 @@ extension VTGTextLayout {
                 fontsUsed.append(family)
             }
             var attributes: [NSAttributedString.Key: Any] = [
-                .font: font,
+                NSAttributedString.Key(kCTFontAttributeName as String): font,
                 NSAttributedString.Key(kCTForegroundColorAttributeName as String): style.resolvedColor.textCGColor
             ]
             if let tracking = style.tracking, tracking != 0 {
@@ -551,6 +555,12 @@ extension VTGTextLayout {
             context.restoreGState()
         }
     }
+}
+
+/// The families this host can draw with, for `fonts?`.
+enum VTGFontCatalog {
+    static var availableFamilies: [String] { VTGFontResolver.availableFamilies() }
+    static var defaultFamily: String { VTGFontResolver.defaultFamily }
 }
 
 /// Resolves a style's family, weight, and slant to a Core Text font.

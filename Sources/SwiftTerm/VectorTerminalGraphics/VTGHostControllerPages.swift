@@ -861,13 +861,8 @@ extension VTGHostController {
     }
 
     private func fontsResponse() -> String {
-        #if canImport(CoreText)
-        let families = VTGFontResolver.availableFamilies().map(Self.fieldSafe)
-        let defaultFamily = Self.fieldSafe(VTGFontResolver.defaultFamily)
-        #else
-        let families: [String] = []
-        let defaultFamily = "sans"
-        #endif
+        let families = VTGFontCatalog.availableFamilies.map(Self.fieldSafe)
+        let defaultFamily = Self.fieldSafe(VTGFontCatalog.defaultFamily)
         return pageEvent(
             "fonts",
             ("default", defaultFamily),

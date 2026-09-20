@@ -1,11 +1,5 @@
 import Foundation
 
-/// One thing the harness can show.
-struct HarnessScene {
-    let name: String
-    let bytes: String
-}
-
 /// The VTG the harness feeds its terminal view.
 ///
 /// Written as escape sequences rather than SDK calls on purpose: this is the
@@ -26,7 +20,10 @@ enum HarnessScenes {
     ///
     /// Sent before each scene so switching between them cannot accumulate
     /// state — the same reset a host performs when a program exits.
-    static let reset = vtg("pageEnd") + vtg("clear") + "\u{1b}[2J\u{1b}[H"
+    /// `[3J` clears the scrollback as well as the screen. Without it the
+    /// keyboard appearing resizes the terminal, and the reflow pulls the
+    /// previous tab's lines back out of the scrollback and onto the screen.
+    static let reset = vtg("pageEnd") + vtg("clear") + "\u{1b}[2J\u{1b}[3J\u{1b}[H"
 
     static let styles =
         vtg("textStyle,id=title,font=Georgia,size=40,weight=bold,color=#ffffff")
@@ -34,16 +31,8 @@ enum HarnessScenes {
         + vtg("textStyle,id=em,inherit=body,color=#5eead4,weight=bold")
         + vtg("textStyle,id=code,font=mono,size=15,color=#fbbf24")
 
-    static var all: [HarnessScene] {
-        [
-            HarnessScene(name: "Text", bytes: text),
-            HarnessScene(name: "Graphics", bytes: graphics),
-            HarnessScene(name: "Page", bytes: page)
-        ]
-    }
-
     /// Plain terminal output: the baseline that must keep working.
-    private static let text = [
+    static let text = [
         "\u{1b}[1mSwiftTerm on iPadOS\u{1b}[0m",
         "",
         "This is the ordinary terminal, fed bytes by the app. There is no",
@@ -60,7 +49,7 @@ enum HarnessScenes {
     ].joined(separator: "\r\n")
 
     /// Retained VTG primitives in the overlay, over live terminal text.
-    private static let graphics =
+    static let graphics =
         "\u{1b}[1mVTG graphics, drawn by the UIKit overlay\u{1b}[0m\r\n\r\n"
         + "The shapes below are retained primitives, not characters.\r\n"
         + "They are drawn by VTGOverlayView through Core Graphics —\r\n"
@@ -78,7 +67,7 @@ enum HarnessScenes {
         + vtg("styledText,id=c,x=320,y=430,style=code,align=center;rect · circle · path · styledText")
 
     /// A page: the whole of VTG Page Mode, on a tablet.
-    private static let page =
+    static let page =
         "\u{1b}[2mOrdinary terminal output, underneath the page.\u{1b}[0m\r\n"
         + styles
         + vtg("pageBegin,id=harness")
@@ -96,4 +85,34 @@ enum HarnessScenes {
               + run("-", "still there underneath."))
         + vtg("styledText,id=c,x=310,y=250,style=code,align=center;pageOpen → draw → pageShow")
         + vtg("pageShow")
+
+    /// The graphics scene with no terminal text in front of it, for the
+    /// shell's `draw` command — the shell has already written its own.
+    static var graphicsBody: String {
+        styles
+            + vtg("clear")
+            + vtg("rect,id=panel,x=60,y=220,w=520,h=300,stroke=#5eead4,fill=#0b122099,width=2,radius=16")
+            + vtg("circle,id=moon,cx=470,cy=300,r=44,stroke=none,fill=#f8fafc")
+            + vtg("circle,id=shade,cx=492,cy=288,r=40,stroke=none,fill=#0b1220")
+            + vtg("styledText,id=t,x=320,y=280,style=title,align=center;Drawn from a command")
+            + vtg("styledText,id=c,x=320,y=430,style=code,align=center;draw · page · cls")
+    }
+
+    /// The page scene without its terminal line, for the shell's `page`.
+    static var pageBody: String {
+        styles
+            + vtg("pageBegin,id=shell")
+            + vtg("pageOpen,id=card,bg=#0b1220f2,w=620,h=300,grow=none")
+            + vtg("pageViewport,x=60,y=200,w=620,h=300")
+            + vtg("rect,id=frame,x=1,y=1,w=618,h=298,stroke=#5eead4,fill=none,width=2,radius=14")
+            + vtg("styledText,id=t,x=310,y=40,style=title,align=center;Page Mode")
+            + vtg("attrText,id=s,x=310,y=120,style=body,align=center;"
+                  + run("-", "Opened by a command in the shell.")
+                  + run("NL", "")
+                  + run("-", "The next prompt takes it down, because the")
+                  + run("NL", "")
+                  + run("em", "shell emits OSC 133 prompt marks")
+                  + run("-", "."))
+            + vtg("pageShow")
+    }
 }

@@ -7,8 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		23CDAF4DAA12367B7441D329 /* TerminalTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9277232BBCB3100078B0AC7 /* TerminalTransport.swift */; };
+		45E07BA3598E4887DA5195F1 /* SimulatedShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4D25B7846BB9AF84E39BAD /* SimulatedShell.swift */; };
 		7B1742FB80CB6C1F726E75DC /* HarnessScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF53642A1E0F831E9AE146D /* HarnessScenes.swift */; };
 		8171170927DD9CD61EC4CF71 /* HarnessViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E1F14E3A7FCDCDBBF4A571 /* HarnessViewController.swift */; };
+		81C13E3074C220ED08817197 /* LoopbackTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729D2B09C89429F455A2077A /* LoopbackTransport.swift */; };
 		82451DADEAE0118EE7DE7125 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */; };
 		8746601A511AA4DA054C0051 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = FB9E67BD0C7D5D58B83052AB /* SwiftTerm */; };
 /* End PBXBuildFile section */
@@ -16,9 +19,12 @@
 /* Begin PBXFileReference section */
 		14E1F14E3A7FCDCDBBF4A571 /* HarnessViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessViewController.swift; sourceTree = "<group>"; };
 		1649B70B66918DBCF0AC7970 /* SwiftTerm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftTerm; path = ../..; sourceTree = SOURCE_ROOT; };
+		2B4D25B7846BB9AF84E39BAD /* SimulatedShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatedShell.swift; sourceTree = "<group>"; };
 		6FF53642A1E0F831E9AE146D /* HarnessScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessScenes.swift; sourceTree = "<group>"; };
+		729D2B09C89429F455A2077A /* LoopbackTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackTransport.swift; sourceTree = "<group>"; };
 		80E273B1BF721134F291EDFA /* VTGiPadHarness.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VTGiPadHarness.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A9277232BBCB3100078B0AC7 /* TerminalTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalTransport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,6 +53,7 @@
 				82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */,
 				6FF53642A1E0F831E9AE146D /* HarnessScenes.swift */,
 				14E1F14E3A7FCDCDBBF4A571 /* HarnessViewController.swift */,
+				B890919FD40AF3BF9F5FE494 /* Transport */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -57,6 +64,16 @@
 				80E273B1BF721134F291EDFA /* VTGiPadHarness.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B890919FD40AF3BF9F5FE494 /* Transport */ = {
+			isa = PBXGroup;
+			children = (
+				729D2B09C89429F455A2077A /* LoopbackTransport.swift */,
+				2B4D25B7846BB9AF84E39BAD /* SimulatedShell.swift */,
+				A9277232BBCB3100078B0AC7 /* TerminalTransport.swift */,
+			);
+			path = Transport;
 			sourceTree = "<group>";
 		};
 		D86C25A9B9D5CA702B37D3DB = {
@@ -134,6 +151,9 @@
 				82451DADEAE0118EE7DE7125 /* AppDelegate.swift in Sources */,
 				7B1742FB80CB6C1F726E75DC /* HarnessScenes.swift in Sources */,
 				8171170927DD9CD61EC4CF71 /* HarnessViewController.swift in Sources */,
+				81C13E3074C220ED08817197 /* LoopbackTransport.swift in Sources */,
+				45E07BA3598E4887DA5195F1 /* SimulatedShell.swift in Sources */,
+				23CDAF4DAA12367B7441D329 /* TerminalTransport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

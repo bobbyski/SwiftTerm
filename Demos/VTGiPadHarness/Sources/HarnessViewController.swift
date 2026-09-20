@@ -11,7 +11,7 @@ import SwiftTerm
 /// has to be good enough to drive from bytes alone.
 final class HarnessViewController: UIViewController {
     private let terminalView = VectorTerminalView(frame: .zero, font: nil)
-    private let picker = UISegmentedControl(items: ["Text", "Graphics", "Page", "Shell"])
+    private let picker = UISegmentedControl(items: ["Text", "Graphics", "Page", "Shell", "Remote"])
 
     /// Set while the Shell tab is up; nil while a scene is on screen.
     private var transport: TerminalTransport?
@@ -73,7 +73,7 @@ final class HarnessViewController: UIViewController {
         // SwiftTerm's reflow pulls lines back out of the scrollback as it
         // does — so clearing before the resize leaves the previous tab's text
         // on screen.
-        if tab == 3 {
+        if tab >= 3 {
             _ = terminalView.becomeFirstResponder()
         } else {
             _ = terminalView.resignFirstResponder()
@@ -87,6 +87,8 @@ final class HarnessViewController: UIViewController {
             feed(HarnessScenes.page)
         case 3:
             startShell()
+        case 4:
+            startRemote()
         default:
             feed(HarnessScenes.text)
         }
@@ -108,6 +110,34 @@ final class HarnessViewController: UIViewController {
         loopback.connect(cols: terminal.cols, rows: terminal.rows)
     }
 
+    /// Connect to a socket. Same seam, a different conformer — which is the
+    /// point of the seam: nothing above this method changes.
+    ///
+    /// `Tools/vtg-telnet-server.py` is what this expects to find, and an iOS
+    /// simulator reaches the host Mac's loopback directly.
+    private func startRemote() {
+        let terminal = terminalView.getTerminal()
+        let network = NetworkTransport(host: Self.remoteHost, port: Self.remotePort, kind: .telnet)
+        network.onOutput = { [weak self] bytes in
+            self?.terminalView.feed(byteArray: ArraySlice(bytes))
+        }
+        network.onStateChange = { [weak self] state in
+            guard let self else { return }
+            print("harness transport: \(state)")
+            switch state {
+            case .connecting:
+                self.feed("Connecting to \(Self.remoteHost):\(Self.remotePort)…\r\n")
+            case .closed(let reason):
+                self.feed("\r\n\u{1b}[31mDisconnected\u{1b}[0m\(reason.map { ": \($0)" } ?? "").\r\n"
+                          + "Start the test server: python3 Tools/vtg-telnet-server.py\r\n")
+            case .idle, .ready:
+                break
+            }
+        }
+        transport = network
+        network.connect(cols: terminal.cols, rows: terminal.rows)
+    }
+
     /// What the terminal buffer holds, so "the text is missing" can be told
     /// apart from "the text was never parsed". This is how the opaque-overlay
     /// bug was narrowed down.
@@ -119,6 +149,10 @@ final class HarnessViewController: UIViewController {
         )
         print("harness tab \(tab): buffer rows 0-4 = \(text.debugDescription)")
     }
+
+    /// Where the Remote tab connects. The simulator's loopback is the Mac's.
+    private static let remoteHost = "127.0.0.1"
+    private static let remotePort: UInt16 = 2323
 
     private func feed(_ text: String) {
         terminalView.feed(byteArray: Array(text.utf8)[...])

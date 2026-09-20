@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1403619ED9F1AD5ED35A02AA /* TelnetCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C948FEA92FF475EEB669FB /* TelnetCodec.swift */; };
 		23CDAF4DAA12367B7441D329 /* TerminalTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9277232BBCB3100078B0AC7 /* TerminalTransport.swift */; };
 		45E07BA3598E4887DA5195F1 /* SimulatedShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4D25B7846BB9AF84E39BAD /* SimulatedShell.swift */; };
 		7B1742FB80CB6C1F726E75DC /* HarnessScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF53642A1E0F831E9AE146D /* HarnessScenes.swift */; };
@@ -14,6 +15,7 @@
 		81C13E3074C220ED08817197 /* LoopbackTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729D2B09C89429F455A2077A /* LoopbackTransport.swift */; };
 		82451DADEAE0118EE7DE7125 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */; };
 		8746601A511AA4DA054C0051 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = FB9E67BD0C7D5D58B83052AB /* SwiftTerm */; };
+		BB54E855C9A3DE2C0B0C8FD6 /* NetworkTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90764FB0CBE1E2D3F37F32C9 /* NetworkTransport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +26,8 @@
 		729D2B09C89429F455A2077A /* LoopbackTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackTransport.swift; sourceTree = "<group>"; };
 		80E273B1BF721134F291EDFA /* VTGiPadHarness.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VTGiPadHarness.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		88C948FEA92FF475EEB669FB /* TelnetCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelnetCodec.swift; sourceTree = "<group>"; };
+		90764FB0CBE1E2D3F37F32C9 /* NetworkTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkTransport.swift; sourceTree = "<group>"; };
 		A9277232BBCB3100078B0AC7 /* TerminalTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalTransport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -70,7 +74,9 @@
 			isa = PBXGroup;
 			children = (
 				729D2B09C89429F455A2077A /* LoopbackTransport.swift */,
+				90764FB0CBE1E2D3F37F32C9 /* NetworkTransport.swift */,
 				2B4D25B7846BB9AF84E39BAD /* SimulatedShell.swift */,
+				88C948FEA92FF475EEB669FB /* TelnetCodec.swift */,
 				A9277232BBCB3100078B0AC7 /* TerminalTransport.swift */,
 			);
 			path = Transport;
@@ -152,7 +158,9 @@
 				7B1742FB80CB6C1F726E75DC /* HarnessScenes.swift in Sources */,
 				8171170927DD9CD61EC4CF71 /* HarnessViewController.swift in Sources */,
 				81C13E3074C220ED08817197 /* LoopbackTransport.swift in Sources */,
+				BB54E855C9A3DE2C0B0C8FD6 /* NetworkTransport.swift in Sources */,
 				45E07BA3598E4887DA5195F1 /* SimulatedShell.swift in Sources */,
+				1403619ED9F1AD5ED35A02AA /* TelnetCodec.swift in Sources */,
 				23CDAF4DAA12367B7441D329 /* TerminalTransport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

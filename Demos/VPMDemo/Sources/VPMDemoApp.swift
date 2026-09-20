@@ -9,8 +9,10 @@ import SwiftTerm
 /// When the script finishes the window drops into an interactive shell, where
 /// the script can be run again or page-mode sequences typed by hand.
 ///
-/// `--capture <dir>` runs the script unattended and writes an SVG snapshot of
-/// the window every half second, then quits.
+/// `--command <program>` runs that program instead of the bundled script,
+/// which is how the `VPMPages` command-line demo is launched into a terminal
+/// that has page mode. `--capture <dir>` runs unattended and writes an SVG
+/// snapshot of the window every half second, then quits.
 @main
 final class VPMDemoApp: NSObject, NSApplicationDelegate, LocalProcessVectorTerminalViewDelegate {
     private var window: NSWindow!
@@ -50,18 +52,33 @@ final class VPMDemoApp: NSObject, NSApplicationDelegate, LocalProcessVectorTermi
         NSApp.activate(ignoringOtherApps: true)
         installMenu()
 
-        guard let script = Bundle.main.path(forResource: "vpm-demo", ofType: "sh") else {
+        var requested: String?
+        if let index = arguments.firstIndex(of: "--command"), index + 1 < arguments.count {
+            requested = arguments[index + 1]
+        }
+        guard let program = requested ?? Bundle.main.path(forResource: "vpm-demo", ofType: "sh") else {
             terminal.feed(text: "vpm-demo.sh is missing from the app bundle.\r\n")
             return
         }
-        let quoted = "'" + script.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        let quoted = "'" + program.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        // The bundled script needs bash; a built program runs as itself, and
+        // `--command` may carry arguments, in which case it is a command line
+        // rather than a path to quote.
+        let invocation: String
+        if program.hasSuffix(".sh") {
+            invocation = "/bin/bash \(quoted)"
+        } else if program.contains(" ") {
+            invocation = program
+        } else {
+            invocation = quoted
+        }
         let command: String
         if captureDirectory != nil {
-            command = "/bin/bash \(quoted) auto"
+            command = program.hasSuffix(".sh") ? "\(invocation) auto" : invocation
         } else {
             command = """
-            /bin/bash \(quoted); \
-            printf '\\nRun it again:  bash %s\\n\\n' \(quoted); \
+            \(invocation); \
+            printf '\\nRun it again:  %s\\n\\n' \(quoted); \
             exec /bin/zsh -i
             """
         }

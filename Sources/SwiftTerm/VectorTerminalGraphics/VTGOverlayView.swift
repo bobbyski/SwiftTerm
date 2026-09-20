@@ -1,40 +1,57 @@
+#if os(macOS) || os(iOS)
 #if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 
-/// Transparent AppKit overlay that renders retained VTG primitives.
-public final class VTGOverlayView: NSView {
+/// Transparent overlay view that renders retained VTG primitives.
+public final class VTGOverlayView: VTGPlatformView {
     /// Current retained VTG scene to draw.
     public var scene: VTGGraphicsScene? {
         didSet {
-            needsDisplay = true
+            vtgSetNeedsDisplay()
         }
     }
 
+    #if os(macOS)
     /// Use top-left origin so VTG pixel coordinates match terminal screenshots.
+    ///
+    /// UIKit draws from the top left already, which is why the whole drawing
+    /// layer ports without a coordinate flip.
     public override var isFlipped: Bool {
         true
     }
+    #endif
 
-    public override init(frame frameRect: NSRect) {
+    public override init(frame frameRect: CGRect) {
         super.init(frame: frameRect)
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.clear.cgColor
+        vtgUseTransparentLayer()
     }
 
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.clear.cgColor
+        vtgUseTransparentLayer()
     }
 
+    #if os(macOS)
     /// Ignore mouse hits so input continues to flow to the terminal view.
     public override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }
+    #else
+    /// Ignore touches so input continues to flow to the terminal view.
+    ///
+    /// Returning nil is the same contract AppKit's `hitTest` has here: this
+    /// view is never the target, whatever is underneath is.
+    public override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        nil
+    }
+    #endif
 
     /// Draw all retained VTG primitives into the current graphics context.
-    public override func draw(_ dirtyRect: NSRect) {
-        guard let context = NSGraphicsContext.current?.cgContext,
+    public override func draw(_ dirtyRect: CGRect) {
+        guard let context = vtgCurrentCGContext(),
               let scene else {
             return
         }

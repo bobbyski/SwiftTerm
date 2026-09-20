@@ -1,5 +1,9 @@
+#if os(macOS) || os(iOS)
 #if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 
 /// Transparent AppKit view that composites the visible VTG Page Mode page.
 ///
@@ -8,11 +12,11 @@ import AppKit
 /// background, then each visible layer by z, clipped to the page's extent and
 /// its viewport. Like the overlay, it never takes mouse hits — input reaches
 /// the terminal view, which reports page coordinates in VTG mouse events.
-public final class VTGPageView: NSView {
+public final class VTGPageView: VTGPlatformView {
     /// The page to draw, or `nil` for nothing.
     public var page: VTGPage? {
         didSet {
-            needsDisplay = true
+            vtgSetNeedsDisplay()
         }
     }
 
@@ -68,28 +72,34 @@ public final class VTGPageView: NSView {
     public private(set) var lastCacheHits = 0
     public private(set) var lastCacheMisses = 0
 
+    #if os(macOS)
     public override var isFlipped: Bool {
         true
     }
+    #endif
 
-    public override init(frame frameRect: NSRect) {
+    public override init(frame frameRect: CGRect) {
         super.init(frame: frameRect)
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.clear.cgColor
+        vtgUseTransparentLayer()
     }
 
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.clear.cgColor
+        vtgUseTransparentLayer()
     }
 
+    #if os(macOS)
     public override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }
+    #else
+    public override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        nil
+    }
+    #endif
 
-    public override func draw(_ dirtyRect: NSRect) {
-        guard let context = NSGraphicsContext.current?.cgContext, let page else {
+    public override func draw(_ dirtyRect: CGRect) {
+        guard let context = vtgCurrentCGContext(), let page else {
             return
         }
         draw(page: page, in: context, bounds: bounds)
@@ -235,10 +245,9 @@ public final class VTGPageView: NSView {
         // Render top-left-origin, as the rest of VTG draws.
         imageContext.translateBy(x: 0, y: size.height)
         imageContext.scaleBy(x: 1, y: -1)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: imageContext, flipped: true)
+        vtgPushDrawingContext(imageContext)
         painter.draw(scene: scene, plane: nil, in: imageContext, bounds: CGRect(origin: .zero, size: size))
-        NSGraphicsContext.restoreGraphicsState()
+        vtgPopDrawingContext()
         layerCaches[key] = LayerCache(
             scene: scene,
             revision: scene.revision,

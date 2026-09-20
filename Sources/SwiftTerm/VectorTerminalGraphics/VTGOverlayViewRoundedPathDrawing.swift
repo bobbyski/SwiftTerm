@@ -1,5 +1,9 @@
+#if os(macOS) || os(iOS)
 #if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 
 extension VTGOverlayView {
     /// Apply a polygon path, optionally rounding each corner with a quadratic

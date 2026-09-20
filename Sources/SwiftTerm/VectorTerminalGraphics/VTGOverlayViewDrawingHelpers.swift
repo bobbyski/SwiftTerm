@@ -1,5 +1,9 @@
+#if os(macOS) || os(iOS)
 #if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 
 extension VTGOverlayView {
     /// Apply a constrained VTG path command list to the current CGContext path.
@@ -52,27 +56,4 @@ extension VTGLineJoin {
     }
 }
 
-extension NSColor {
-    /// Convert VTG colors into AppKit colors for text drawing.
-    convenience init(_ color: VTGColor) {
-        self.init(
-            calibratedRed: CGFloat(color.red),
-            green: CGFloat(color.green),
-            blue: CGFloat(color.blue),
-            alpha: CGFloat(color.alpha)
-        )
-    }
-}
-
-extension VTGColor {
-    /// Core Graphics color representation for primitive drawing.
-    var cgColor: CGColor {
-        CGColor(
-            red: CGFloat(red),
-            green: CGFloat(green),
-            blue: CGFloat(blue),
-            alpha: CGFloat(alpha)
-        )
-    }
-}
 #endif

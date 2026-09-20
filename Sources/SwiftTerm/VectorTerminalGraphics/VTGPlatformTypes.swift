@@ -122,16 +122,23 @@ extension VTGPlatformView {
         #endif
     }
 
-    /// Make the view layer-backed with a transparent background.
+    /// Make the view layer-backed and genuinely transparent.
     ///
     /// `wantsLayer` is an AppKit-only step — UIKit views are layer-backed
-    /// already, and their `layer` is not optional, which is why this is a
-    /// helper rather than two lines repeated at each call site.
+    /// already, and their `layer` is not optional.
+    ///
+    /// **`isOpaque` is why this matters on iOS.** A `UIView` is opaque by
+    /// default: the compositor takes the view's whole rectangle as covered,
+    /// whatever was actually drawn, so an overlay with a few shapes on it
+    /// hides the terminal text behind it and shows black everywhere else.
+    /// `NSView` has no such default, which is why this is a one-sided fix.
     func vtgUseTransparentLayer() {
         #if os(macOS)
         wantsLayer = true
         layer?.backgroundColor = VTGPlatformColor.clear.cgColor
         #else
+        isOpaque = false
+        backgroundColor = .clear
         layer.backgroundColor = VTGPlatformColor.clear.cgColor
         #endif
     }

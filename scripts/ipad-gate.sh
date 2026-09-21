@@ -2,8 +2,8 @@
 #
 # The gate the iPad work runs before every commit (IPAD_PLAN.md, item 0.3).
 #
-#   sh Scripts/ipad-gate.sh            macOS suite, parity, iOS compile
-#   sh Scripts/ipad-gate.sh --ios      the same, plus the suite on an iPad simulator
+#   sh scripts/ipad-gate.sh            macOS suite, parity, iOS compile
+#   sh scripts/ipad-gate.sh --ios      the same, plus the suite on an iPad simulator
 #
 # The rule it enforces: the Mac version cannot break, at any commit. So the
 # macOS checks come first and a failure there stops everything — an iOS build

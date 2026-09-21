@@ -14,6 +14,7 @@
 		82451DADEAE0118EE7DE7125 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */; };
 		8746601A511AA4DA054C0051 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = FB9E67BD0C7D5D58B83052AB /* SwiftTerm */; };
 		E0BFF08F9413261CB86DED36 /* HarnessSprite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F03A170876C679CF350F78 /* HarnessSprite.swift */; };
+		F045E9B86AE6521948B2E29E /* HarnessSSH.swift in Sources */ = {isa = PBXBuildFile; fileRef = E39F6A8B235DA89AC96B5FC7 /* HarnessSSH.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +26,7 @@
 		6FF53642A1E0F831E9AE146D /* HarnessScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessScenes.swift; sourceTree = "<group>"; };
 		80E273B1BF721134F291EDFA /* VTGiPadHarness.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VTGiPadHarness.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		E39F6A8B235DA89AC96B5FC7 /* HarnessSSH.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessSSH.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,6 +58,7 @@
 				6FF53642A1E0F831E9AE146D /* HarnessScenes.swift */,
 				04D004AEC655F19308BC3A8A /* HarnessShellCommands.swift */,
 				66F03A170876C679CF350F78 /* HarnessSprite.swift */,
+				E39F6A8B235DA89AC96B5FC7 /* HarnessSSH.swift */,
 				14E1F14E3A7FCDCDBBF4A571 /* HarnessViewController.swift */,
 			);
 			path = Sources;
@@ -144,6 +147,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				82451DADEAE0118EE7DE7125 /* AppDelegate.swift in Sources */,
+				F045E9B86AE6521948B2E29E /* HarnessSSH.swift in Sources */,
 				7B1742FB80CB6C1F726E75DC /* HarnessScenes.swift in Sources */,
 				2F9A97D916458FA06725CD58 /* HarnessShellCommands.swift in Sources */,
 				E0BFF08F9413261CB86DED36 /* HarnessSprite.swift in Sources */,

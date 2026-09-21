@@ -12,7 +12,7 @@ import TerminalTransports
 /// has to be good enough to drive from bytes alone.
 final class HarnessViewController: UIViewController {
     private let terminalView = VectorTerminalView(frame: .zero, font: nil)
-    private let picker = UISegmentedControl(items: ["Text", "Graphics", "Page", "Shell", "Remote"])
+    private let picker = UISegmentedControl(items: ["Text", "Graphics", "Page", "Shell", "Remote", "SSH"])
 
     /// Set while the Shell tab is up; nil while a scene is on screen.
     private var transport: TerminalTransport?
@@ -90,6 +90,10 @@ final class HarnessViewController: UIViewController {
             startShell()
         case 4:
             startRemote()
+        case 5:
+            HarnessSSH.askForLogin(from: self) { [weak self] transport in
+                self?.attach(transport, describing: "SSH")
+            }
         default:
             feed(HarnessScenes.text)
         }
@@ -151,6 +155,31 @@ final class HarnessViewController: UIViewController {
             end: Position(col: terminal.cols - 1, row: 4)
         )
         print("harness tab \(tab): buffer rows 0-4 = \(text.debugDescription)")
+    }
+
+    /// Wire any transport to the terminal: output in, state shown, and the
+    /// transport kept so typing, resizing and replies reach it.
+    private func attach(_ transport: TerminalTransport, describing name: String) {
+        let terminal = terminalView.getTerminal()
+        transport.onOutput = { [weak self] bytes in
+            self?.terminalView.feed(byteArray: ArraySlice(bytes))
+        }
+        transport.onStateChange = { [weak self] state in
+            guard let self else { return }
+            print("harness transport: \(state)")
+            switch state {
+            case .connecting:
+                self.feed("\(name): connecting…\r\n")
+            case .ready:
+                self.feed("\(name): connected.\r\n")
+            case .closed(let reason):
+                self.feed("\r\n\u{1b}[31m\(name): disconnected\u{1b}[0m\(reason.map { " — \($0)" } ?? "").\r\n")
+            case .idle:
+                break
+            }
+        }
+        self.transport = transport
+        transport.connect(cols: terminal.cols, rows: terminal.rows)
     }
 
     /// Where the Remote tab connects. The simulator's loopback is the Mac's.

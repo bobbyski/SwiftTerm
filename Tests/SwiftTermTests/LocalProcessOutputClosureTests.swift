@@ -22,9 +22,15 @@ final class LocalProcessOutputClosureTests: XCTestCase, LocalProcessDelegate {
             self.closeCount += 1
             closure.fulfill()
         }
-        process.startProcess(executable: "/bin/sh", args: ["-c", "/usr/bin/seq 1 20000; printf FINAL; exit 7"])
+        // `stty -opost` first: with the tty translating \n to \r\n, macOS
+        // sometimes emits the \r twice when the pty's output queue fills, which
+        // it does when a loaded machine reads slowly — "557\r\r\n", a few lines
+        // in 20,000, only under the full suite. That is the kernel's line
+        // discipline, not SwiftTerm, and not what this test is about, so the
+        // bytes here are exactly what seq wrote.
+        process.startProcess(executable: "/bin/sh", args: ["-c", "stty -opost; /usr/bin/seq 1 20000; printf FINAL; exit 7"])
         wait(for: [closure, termination], timeout: 20)
-        let expected = (1...20000).map(String.init).joined(separator: "\r\n") + "\r\nFINAL"
+        let expected = (1...20000).map(String.init).joined(separator: "\n") + "\nFINAL"
         XCTAssertEqual(String(decoding: received, as: UTF8.self), expected)
         XCTAssertEqual(closeCount, 1)
         process.terminate()

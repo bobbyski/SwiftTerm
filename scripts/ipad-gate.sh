@@ -30,7 +30,18 @@ cd "$ROOT"
 say() { printf '\n== %s ==\n' "$1"; }
 
 say "macOS: the whole SwiftTerm suite"
-out=$(swift test --no-parallel 2>&1) || { printf '%s\n' "$out" | tail -30; echo "FAIL: macOS suite" >&2; exit 1; }
+mkdir -p "$DERIVED"
+LOG="$DERIVED/macos-suite.log"
+# The whole log is kept, pass or fail. A failure that does not reproduce is
+# still a failure, and its cause should not depend on how the gate's output was
+# read at the time — one went unexplained on 2026-09-21 for exactly that reason.
+out=$(swift test --no-parallel 2>&1) || {
+    printf '%s\n' "$out" > "$LOG"
+    printf '%s\n' "$out" | tail -30
+    echo "FAIL: macOS suite — full log in $LOG" >&2
+    exit 1
+}
+printf '%s\n' "$out" > "$LOG"
 count=$(printf '%s\n' "$out" | sed -n 's/.*Test run with \([0-9]*\) tests.*/\1/p' | tail -1)
 echo "passed: ${count:-?} tests (baseline $MAC_BASELINE)"
 if [ -n "$count" ] && [ "$count" -lt "$MAC_BASELINE" ]; then

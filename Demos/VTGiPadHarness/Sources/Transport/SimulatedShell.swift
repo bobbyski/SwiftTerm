@@ -216,5 +216,15 @@ final class SimulatedShell: EmbeddedProgram {
         register({ [weak self] _ in
             self?.write(HarnessScenes.vtg("pageEnd") + HarnessScenes.vtg("clear"))
         }, as: "cls")
+
+        register({ [weak self] _ in
+            guard let self else { return }
+            self.write("A page taller than the screen. Drag it; press any key to close.\r\n")
+            self.write(HarnessScenes.scrollableDocument)
+            self.foreground = { [weak self] _ in
+                self?.write(HarnessScenes.vtg("pageEnd") + "\r\nDocument closed.\r\n")
+                return true
+            }
+        }, as: "doc")
     }
 }

@@ -118,4 +118,20 @@ enum HarnessScenes {
                   + run("-", "."))
             + vtg("pageShow")
     }
+
+    /// A page taller than the screen that the user may scroll with a finger:
+    /// the check for Phase 3's page-first scrolling rule.
+    static var scrollableDocument: String {
+        var bytes = styles
+            + vtg("pageBegin,id=doc")
+            + vtg("pageOpen,id=doc,bg=#0f172af0")
+            + vtg("styledText,id=t,x=60,y=50,style=title;Drag to scroll this page")
+        for index in 0..<40 {
+            let y = 140 + index * 80
+            bytes += vtg("rect,id=r\(index),x=60,y=\(y),w=560,h=60,stroke=#5eead4,fill=#0b1220,width=1,radius=8")
+            bytes += vtg("styledText,id=l\(index),x=80,y=\(y + 20),style=body;Row \(index + 1) of 40 — at page y \(y)")
+        }
+        bytes += vtg("pageShow") + vtg("pageScrollMode,user=1,axis=y")
+        return bytes
+    }
 }

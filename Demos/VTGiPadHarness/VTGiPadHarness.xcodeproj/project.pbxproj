@@ -7,30 +7,24 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1403619ED9F1AD5ED35A02AA /* TelnetCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C948FEA92FF475EEB669FB /* TelnetCodec.swift */; };
-		23CDAF4DAA12367B7441D329 /* TerminalTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9277232BBCB3100078B0AC7 /* TerminalTransport.swift */; };
-		45E07BA3598E4887DA5195F1 /* SimulatedShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4D25B7846BB9AF84E39BAD /* SimulatedShell.swift */; };
+		2F9A97D916458FA06725CD58 /* HarnessShellCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04D004AEC655F19308BC3A8A /* HarnessShellCommands.swift */; };
+		52E801A5AAF8DCE29B802706 /* TerminalTransports in Frameworks */ = {isa = PBXBuildFile; productRef = 4C93A263F92F1A49C249ABC6 /* TerminalTransports */; };
 		7B1742FB80CB6C1F726E75DC /* HarnessScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF53642A1E0F831E9AE146D /* HarnessScenes.swift */; };
 		8171170927DD9CD61EC4CF71 /* HarnessViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E1F14E3A7FCDCDBBF4A571 /* HarnessViewController.swift */; };
-		81C13E3074C220ED08817197 /* LoopbackTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729D2B09C89429F455A2077A /* LoopbackTransport.swift */; };
 		82451DADEAE0118EE7DE7125 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */; };
 		8746601A511AA4DA054C0051 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = FB9E67BD0C7D5D58B83052AB /* SwiftTerm */; };
-		BB54E855C9A3DE2C0B0C8FD6 /* NetworkTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90764FB0CBE1E2D3F37F32C9 /* NetworkTransport.swift */; };
 		E0BFF08F9413261CB86DED36 /* HarnessSprite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F03A170876C679CF350F78 /* HarnessSprite.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		04D004AEC655F19308BC3A8A /* HarnessShellCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessShellCommands.swift; sourceTree = "<group>"; };
 		14E1F14E3A7FCDCDBBF4A571 /* HarnessViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessViewController.swift; sourceTree = "<group>"; };
 		1649B70B66918DBCF0AC7970 /* SwiftTerm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftTerm; path = ../..; sourceTree = SOURCE_ROOT; };
-		2B4D25B7846BB9AF84E39BAD /* SimulatedShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatedShell.swift; sourceTree = "<group>"; };
+		50B2308D038E25F43233BD43 /* TerminalTransports */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TerminalTransports; path = ../../../TerminalTransports; sourceTree = SOURCE_ROOT; };
 		66F03A170876C679CF350F78 /* HarnessSprite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessSprite.swift; sourceTree = "<group>"; };
 		6FF53642A1E0F831E9AE146D /* HarnessScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessScenes.swift; sourceTree = "<group>"; };
-		729D2B09C89429F455A2077A /* LoopbackTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackTransport.swift; sourceTree = "<group>"; };
 		80E273B1BF721134F291EDFA /* VTGiPadHarness.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VTGiPadHarness.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		88C948FEA92FF475EEB669FB /* TelnetCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelnetCodec.swift; sourceTree = "<group>"; };
-		90764FB0CBE1E2D3F37F32C9 /* NetworkTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkTransport.swift; sourceTree = "<group>"; };
-		A9277232BBCB3100078B0AC7 /* TerminalTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalTransport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -39,6 +33,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8746601A511AA4DA054C0051 /* SwiftTerm in Frameworks */,
+				52E801A5AAF8DCE29B802706 /* TerminalTransports in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -49,6 +44,7 @@
 			isa = PBXGroup;
 			children = (
 				1649B70B66918DBCF0AC7970 /* SwiftTerm */,
+				50B2308D038E25F43233BD43 /* TerminalTransports */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -58,9 +54,9 @@
 			children = (
 				82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */,
 				6FF53642A1E0F831E9AE146D /* HarnessScenes.swift */,
+				04D004AEC655F19308BC3A8A /* HarnessShellCommands.swift */,
 				66F03A170876C679CF350F78 /* HarnessSprite.swift */,
 				14E1F14E3A7FCDCDBBF4A571 /* HarnessViewController.swift */,
-				B890919FD40AF3BF9F5FE494 /* Transport */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -71,18 +67,6 @@
 				80E273B1BF721134F291EDFA /* VTGiPadHarness.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		B890919FD40AF3BF9F5FE494 /* Transport */ = {
-			isa = PBXGroup;
-			children = (
-				729D2B09C89429F455A2077A /* LoopbackTransport.swift */,
-				90764FB0CBE1E2D3F37F32C9 /* NetworkTransport.swift */,
-				2B4D25B7846BB9AF84E39BAD /* SimulatedShell.swift */,
-				88C948FEA92FF475EEB669FB /* TelnetCodec.swift */,
-				A9277232BBCB3100078B0AC7 /* TerminalTransport.swift */,
-			);
-			path = Transport;
 			sourceTree = "<group>";
 		};
 		D86C25A9B9D5CA702B37D3DB = {
@@ -111,6 +95,7 @@
 			name = VTGiPadHarness;
 			packageProductDependencies = (
 				FB9E67BD0C7D5D58B83052AB /* SwiftTerm */,
+				4C93A263F92F1A49C249ABC6 /* TerminalTransports */,
 			);
 			productName = VTGiPadHarness;
 			productReference = 80E273B1BF721134F291EDFA /* VTGiPadHarness.app */;
@@ -141,6 +126,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9F00F2AC6EEBE0A50ADE2C03 /* XCLocalSwiftPackageReference "../.." */,
+				45D91377B6B69FD7CF360505 /* XCLocalSwiftPackageReference "../../../TerminalTransports" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6520CF35413D137295069C67 /* Products */;
@@ -159,13 +145,9 @@
 			files = (
 				82451DADEAE0118EE7DE7125 /* AppDelegate.swift in Sources */,
 				7B1742FB80CB6C1F726E75DC /* HarnessScenes.swift in Sources */,
+				2F9A97D916458FA06725CD58 /* HarnessShellCommands.swift in Sources */,
 				E0BFF08F9413261CB86DED36 /* HarnessSprite.swift in Sources */,
 				8171170927DD9CD61EC4CF71 /* HarnessViewController.swift in Sources */,
-				81C13E3074C220ED08817197 /* LoopbackTransport.swift in Sources */,
-				BB54E855C9A3DE2C0B0C8FD6 /* NetworkTransport.swift in Sources */,
-				45E07BA3598E4887DA5195F1 /* SimulatedShell.swift in Sources */,
-				1403619ED9F1AD5ED35A02AA /* TelnetCodec.swift in Sources */,
-				23CDAF4DAA12367B7441D329 /* TerminalTransport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -351,6 +333,10 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		45D91377B6B69FD7CF360505 /* XCLocalSwiftPackageReference "../../../TerminalTransports" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../../TerminalTransports;
+		};
 		9F00F2AC6EEBE0A50ADE2C03 /* XCLocalSwiftPackageReference "../.." */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../..;
@@ -358,6 +344,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		4C93A263F92F1A49C249ABC6 /* TerminalTransports */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TerminalTransports;
+		};
 		FB9E67BD0C7D5D58B83052AB /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftTerm;

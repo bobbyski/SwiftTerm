@@ -1,5 +1,6 @@
 import UIKit
 import SwiftTerm
+import TerminalTransports
 
 /// Shows a `VectorTerminalView` and either replays a scene into it or connects
 /// it to a transport.
@@ -99,7 +100,9 @@ final class HarnessViewController: UIViewController {
     /// SSH session will use.
     private func startShell() {
         let terminal = terminalView.getTerminal()
-        let loopback = LoopbackTransport(program: SimulatedShell())
+        let shell = SimulatedShell()
+        HarnessShellCommands.install(in: shell)
+        let loopback = LoopbackTransport(program: shell)
         loopback.onOutput = { [weak self] bytes in
             self?.terminalView.feed(byteArray: ArraySlice(bytes))
         }

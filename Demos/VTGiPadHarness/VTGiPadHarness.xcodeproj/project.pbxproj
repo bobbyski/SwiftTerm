@@ -16,12 +16,14 @@
 		82451DADEAE0118EE7DE7125 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */; };
 		8746601A511AA4DA054C0051 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = FB9E67BD0C7D5D58B83052AB /* SwiftTerm */; };
 		BB54E855C9A3DE2C0B0C8FD6 /* NetworkTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90764FB0CBE1E2D3F37F32C9 /* NetworkTransport.swift */; };
+		E0BFF08F9413261CB86DED36 /* HarnessSprite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F03A170876C679CF350F78 /* HarnessSprite.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		14E1F14E3A7FCDCDBBF4A571 /* HarnessViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessViewController.swift; sourceTree = "<group>"; };
 		1649B70B66918DBCF0AC7970 /* SwiftTerm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SwiftTerm; path = ../..; sourceTree = SOURCE_ROOT; };
 		2B4D25B7846BB9AF84E39BAD /* SimulatedShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatedShell.swift; sourceTree = "<group>"; };
+		66F03A170876C679CF350F78 /* HarnessSprite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessSprite.swift; sourceTree = "<group>"; };
 		6FF53642A1E0F831E9AE146D /* HarnessScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessScenes.swift; sourceTree = "<group>"; };
 		729D2B09C89429F455A2077A /* LoopbackTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackTransport.swift; sourceTree = "<group>"; };
 		80E273B1BF721134F291EDFA /* VTGiPadHarness.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VTGiPadHarness.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -56,6 +58,7 @@
 			children = (
 				82B4EB37D75DE19F13A95ABA /* AppDelegate.swift */,
 				6FF53642A1E0F831E9AE146D /* HarnessScenes.swift */,
+				66F03A170876C679CF350F78 /* HarnessSprite.swift */,
 				14E1F14E3A7FCDCDBBF4A571 /* HarnessViewController.swift */,
 				B890919FD40AF3BF9F5FE494 /* Transport */,
 			);
@@ -156,6 +159,7 @@
 			files = (
 				82451DADEAE0118EE7DE7125 /* AppDelegate.swift in Sources */,
 				7B1742FB80CB6C1F726E75DC /* HarnessScenes.swift in Sources */,
+				E0BFF08F9413261CB86DED36 /* HarnessSprite.swift in Sources */,
 				8171170927DD9CD61EC4CF71 /* HarnessViewController.swift in Sources */,
 				81C13E3074C220ED08817197 /* LoopbackTransport.swift in Sources */,
 				BB54E855C9A3DE2C0B0C8FD6 /* NetworkTransport.swift in Sources */,

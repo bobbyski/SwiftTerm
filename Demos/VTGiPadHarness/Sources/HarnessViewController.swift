@@ -82,7 +82,7 @@ final class HarnessViewController: UIViewController {
 
         switch tab {
         case 1:
-            feed(HarnessScenes.graphics)
+            feed(HarnessScenes.graphics + HarnessSprite.scene)
         case 2:
             feed(HarnessScenes.page)
         case 3:

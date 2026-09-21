@@ -358,6 +358,17 @@ public class EscapeSequenceParser {
     /// }
     /// ```
     public var oscHandlers: [Int:OscHandler] = [:]
+    /// Receives each original input chunk before parsing, with its absolute byte offset.
+    /// The callback is synchronous; it must not feed or reset this parser reentrantly.
+    /// Offsets remain monotonic across screen resets and count bytes, not characters.
+    public var inputObserver: ((UInt64, ArraySlice<UInt8>) -> Void)?
+
+    /// The original OSC framing during an OSC handler callback; nil otherwise.
+    public private(set) var currentOSCSpan: TerminalOSCSpan?
+    private var inputByteCount: UInt64 = 0
+    private var lastEscapeOffset: UInt64 = 0
+    private var oscStartOffset: UInt64 = 0
+
     var privateSequenceHandlers: [TerminalPrivateSequenceHandler] = []
 
     var activeDcsHandler: DcsHandler? = nil
@@ -703,6 +714,9 @@ public class EscapeSequenceParser {
             }
         }
 #endif
+        let inputBase = inputByteCount
+        inputByteCount += UInt64(data.count)
+        inputObserver?(inputBase, data)
         var code : UInt8 = 0
         var transition : UInt8 = 0
         var error = false
@@ -725,6 +739,9 @@ public class EscapeSequenceParser {
         let end = data.endIndex
         while i < end {
             code = data [i]
+            if code == ControlCodes.ESC {
+                lastEscapeOffset = inputBase + UInt64(i - data.startIndex)
+            }
             
             // 1f..80 are printable ascii characters
             // c2..f3 are valid utf8 beginning of sequence elements, and most importantly,
@@ -871,6 +888,8 @@ public class EscapeSequenceParser {
                     printHandler (data[print..<i])
                     print = -1
                 }
+                oscStartOffset = code == 0x9d || code == 0x9f
+                    ? inputBase + UInt64(i - data.startIndex) : lastEscapeOffset
                 let nextState = ParserState (rawValue: transition & 15)!
                 if nextState == .apcString {
                     apc = []
@@ -913,7 +932,11 @@ public class EscapeSequenceParser {
                             oscCode = EscapeSequenceParser.parseInt(osc[0...])
                             content = []
                         }
+                        currentOSCSpan = TerminalOSCSpan(
+                            bytes: oscStartOffset..<(inputBase + UInt64(i - data.startIndex) + 1),
+                            terminator: code)
                         dispatchOsc(code: oscCode, data: content)
+                        currentOSCSpan = nil
                     }
                 }
                 if code == 0x1b {

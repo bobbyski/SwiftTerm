@@ -394,11 +394,16 @@ extension VTGTextLayout {
             }
             if let lineHeight = style.lineHeight, lineHeight > 0 {
                 var value = CGFloat(lineHeight)
-                let settings = [
-                    CTParagraphStyleSetting(spec: .minimumLineHeight, valueSize: MemoryLayout<CGFloat>.size, value: &value),
-                    CTParagraphStyleSetting(spec: .maximumLineHeight, valueSize: MemoryLayout<CGFloat>.size, value: &value)
-                ]
-                attributes[NSAttributedString.Key(kCTParagraphStyleAttributeName as String)] = CTParagraphStyleCreate(settings, settings.count)
+                // Core Text reads the settings during creation; keep both
+                // pointers valid for that entire call, not just each initializer.
+                attributes[NSAttributedString.Key(kCTParagraphStyleAttributeName as String)] =
+                    withUnsafePointer(to: &value) { pointer in
+                        let settings = [
+                            CTParagraphStyleSetting(spec: .minimumLineHeight, valueSize: MemoryLayout<CGFloat>.size, value: pointer),
+                            CTParagraphStyleSetting(spec: .maximumLineHeight, valueSize: MemoryLayout<CGFloat>.size, value: pointer)
+                        ]
+                        return CTParagraphStyleCreate(settings, settings.count)
+                    }
             }
             let piece = NSAttributedString(string: run.isLineBreak ? "\n" : run.text, attributes: attributes)
             styleRanges.append((NSRange(location: result.length, length: piece.length), style))

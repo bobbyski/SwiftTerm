@@ -89,7 +89,15 @@ public class LocalProcess {
     private let usesMainQueue: Bool
     private let pendingChunkFlushThreshold = 32
     private let pendingTimeSliceNs: UInt64 = 4_000_000
-    private var pendingChunks: [[UInt8]] = []
+    private enum OutputEvent {
+        case bytes([UInt8])
+        case closed(Int32)
+    }
+    /// Called on the delivery queue after all received bytes when the PTY closes.
+    /// Zero means EOF; a nonzero value is the read error. Process exit is separate.
+    public var onOutputClosed: ((Int32) -> Void)?
+    private var outputClosed = false // Confined to readQueue.
+    private var pendingChunks: [OutputEvent] = []
     private var pendingChunkIndex: Int = 0
     private var pendingScheduled = false
     private let pendingLock = NSLock()
@@ -117,9 +125,9 @@ public class LocalProcess {
         self.usesMainQueue = self.dispatchQueue === DispatchQueue.main
     }
 
-    private func enqueueReceivedData(_ bytes: [UInt8]) {
+    private func enqueueReceivedData(_ event: OutputEvent) {
         pendingLock.lock()
-        pendingChunks.append(bytes)
+        pendingChunks.append(event)
         let shouldSchedule = !pendingScheduled
         if shouldSchedule {
             pendingScheduled = true
@@ -135,7 +143,7 @@ public class LocalProcess {
     private func drainReceivedData() {
         let start = DispatchTime.now().uptimeNanoseconds
         while true {
-            var chunk: [UInt8]?
+            var chunk: OutputEvent?
             pendingLock.lock()
             if pendingChunkIndex < pendingChunks.count {
                 chunk = pendingChunks[pendingChunkIndex]
@@ -154,7 +162,10 @@ public class LocalProcess {
             pendingLock.unlock()
 
             if let chunk {
-                delegate?.dataReceived(slice: chunk[...])
+                switch chunk {
+                case .bytes(let bytes): delegate?.dataReceived(slice: bytes[...])
+                case .closed(let error): onOutputClosed?(error)
+                }
             }
 
             if DispatchTime.now().uptimeNanoseconds - start >= pendingTimeSliceNs {
@@ -233,10 +244,22 @@ public class LocalProcess {
 #endif
     }
 
+    // Queue closure behind data, including batches deferred by the UI time slice.
+    private func receivedOutputClose(error: Int32) {
+        guard !outputClosed else { return }
+        outputClosed = true
+        if usesMainQueue {
+            enqueueReceivedData(.closed(error))
+        } else {
+            dispatchQueue.async { [weak self] in self?.onOutputClosed?(error) }
+        }
+    }
+
     /* Total number of bytes read */
     var totalRead = 0
     func childProcessRead (done: Bool, data: DispatchData?, errno: Int32) {
         guard let data else {
+            if done { receivedOutputClose(error: errno); return }
             // Re-schedule the read on transient errors to keep the chain alive
             if !done, running {
                 io?.read(offset: 0, length: readSize, queue: readQueue, ioHandler: childProcessRead)
@@ -249,6 +272,7 @@ public class LocalProcess {
         }
         
         if data.count == 0 {
+            receivedOutputClose(error: errno)
             childfd = -1
             if running {
                 // Keep process monitor alive so the exit event can still deliver
@@ -274,7 +298,7 @@ public class LocalProcess {
             }
         })
         if usesMainQueue {
-            enqueueReceivedData(b)
+            enqueueReceivedData(.bytes(b))
         } else {
             dispatchQueue.sync {
                 self.delegate?.dataReceived(slice: b[...])
@@ -296,10 +320,17 @@ public class LocalProcess {
 
     func processTerminated ()
     {
-        var n: Int32 = 0
-        waitpid (shellPid, &n, WNOHANG)
-        delegate?.processTerminated(self, exitCode: n)
+        var status: Int32 = 0
+        var result: pid_t
+        repeat {
+            result = waitpid(shellPid, &status, WNOHANG)
+        } while result == -1 && errno == EINTR
+        // A live child is not a successful exit. The process monitor will
+        // report its termination; no completion should be fabricated here.
+        guard result != 0 else { return }
+        let code = result == shellPid ? LocalProcessExitStatus.decode(status) : nil
         childStopped()
+        delegate?.processTerminated(self, exitCode: code)
     }
 
     /// Indicates if the child process is currently running
@@ -318,6 +349,7 @@ public class LocalProcess {
             return
         }
         
+        readQueue.sync { outputClosed = false }
         #if false //canImport(Subprocess)
         startProcessWithSubprocess(executable: executable, args: args, environment: environment, execName: execName, currentDirectory: currentDirectory)
         #else

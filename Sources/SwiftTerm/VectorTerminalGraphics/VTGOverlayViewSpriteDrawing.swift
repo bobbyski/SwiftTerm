@@ -1,5 +1,9 @@
+#if os(macOS) || os(iOS)
 #if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 
 extension VTGOverlayView {
     /// Draw a retained bitmap or vector sprite with sprite-only transforms.
@@ -15,7 +19,7 @@ extension VTGOverlayView {
         scene: VTGGraphicsScene
     ) {
         if let asset = scene.spriteAsset(id: assetID),
-           let image = NSImage(data: asset.data) {
+           let image = VTGPlatformImage(data: asset.data) {
             let width = asset.width * scale
             let height = asset.height * scale
             context.saveGState()

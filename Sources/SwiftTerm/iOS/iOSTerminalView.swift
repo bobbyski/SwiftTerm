@@ -1614,6 +1614,23 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     public var smartQuotesType: UITextSmartQuotesType = .no
     public var smartDashesType: UITextSmartDashesType = .no
     public var smartInsertDeleteType: UITextSmartInsertDeleteType = .no
+
+    // Inline predictions (iOS 17) and Writing Tools (iOS 18) both put text in
+    // the view the user did not type. In a terminal that text is sent to the
+    // far end as if typed — a shell runs it — so both are off, like
+    // autocorrect above. Computed, because a stored property cannot carry an
+    // availability newer than the package's iOS 14 floor.
+    @available(iOS 17.0, *)
+    public var inlinePredictionType: UITextInlinePredictionType {
+        get { .no }
+        set {}
+    }
+
+    @available(iOS 18.0, *)
+    public var writingToolsBehavior: UIWritingToolsBehavior {
+        get { .none }
+        set {}
+    }
     
     open override var canBecomeFirstResponder: Bool {
         true
@@ -2304,6 +2321,19 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     /// property in case someone needs the return key to send different sequences.
     public var returnByteSequence: [UInt8] = [13]
     
+    /// What a hardware function key sends, F1 through F12 — the same table the
+    /// Mac view uses. Kept apart from `pressesBegan` so it can be tested: a
+    /// `UIKey` cannot be made outside a real key press. (F10 once sent F9's
+    /// sequence and F12 sent nothing.)
+    static func functionKeySequence(for keyCode: UIKeyboardHIDUsage) -> [UInt8]? {
+        let keys: [UIKeyboardHIDUsage] = [
+            .keyboardF1, .keyboardF2, .keyboardF3, .keyboardF4, .keyboardF5, .keyboardF6,
+            .keyboardF7, .keyboardF8, .keyboardF9, .keyboardF10, .keyboardF11, .keyboardF12,
+        ]
+        guard let index = keys.firstIndex(of: keyCode) else { return nil }
+        return EscapeSequences.cmdF[index]
+    }
+
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         var didHandleEvent = false
         let wasCommandActive = commandActive
@@ -2491,29 +2521,12 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
                     data = .bytes ([9])
                 }
 
-            case .keyboardF1:
-                data = .bytes (EscapeSequences.cmdF [0])
-            case .keyboardF2:
-                data = .bytes (EscapeSequences.cmdF [1])
-            case .keyboardF3:
-                data = .bytes (EscapeSequences.cmdF [2])
-            case .keyboardF4:
-                data = .bytes (EscapeSequences.cmdF [3])
-            case .keyboardF5:
-                data = .bytes (EscapeSequences.cmdF [4])
-            case .keyboardF6:
-                data = .bytes (EscapeSequences.cmdF [5])
-            case .keyboardF7:
-                data = .bytes (EscapeSequences.cmdF [6])
-            case .keyboardF8:
-                data = .bytes (EscapeSequences.cmdF [7])
-            case .keyboardF9:
-                data = .bytes (EscapeSequences.cmdF [8])
-            case .keyboardF10:
-                data = .bytes (EscapeSequences.cmdF [8])
-            case .keyboardF11:
-                data = .bytes (EscapeSequences.cmdF [10])
-            case .keyboardF12, .keyboardF13, .keyboardF14, .keyboardF15, .keyboardF16,
+            case .keyboardF1, .keyboardF2, .keyboardF3, .keyboardF4, .keyboardF5, .keyboardF6,
+                 .keyboardF7, .keyboardF8, .keyboardF9, .keyboardF10, .keyboardF11, .keyboardF12:
+                if let sequence = Self.functionKeySequence(for: key.keyCode) {
+                    data = .bytes (sequence)
+                }
+            case .keyboardF13, .keyboardF14, .keyboardF15, .keyboardF16,
                  .keyboardF17, .keyboardF18, .keyboardF19, .keyboardF20, .keyboardF21,
                  .keyboardF22, .keyboardF23, .keyboardF24:
                 break

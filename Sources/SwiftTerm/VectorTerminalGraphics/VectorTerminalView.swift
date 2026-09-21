@@ -1,5 +1,9 @@
+#if os(macOS) || os(iOS)
 #if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 
 /// VTG-capable variant of `TerminalView` for host-fed terminal content.
 ///
@@ -19,6 +23,12 @@ open class VectorTerminalView: TerminalView {
     /// The visible VTG Page Mode page, composited above the overlay.
     public let vtgPageView = VTGPageView(frame: .zero)
     private var vtgPageStacking: VTGPageStacking = .all
+
+    #if os(iOS)
+    /// Turns taps and drags into VTG mouse events. The Mac does this in
+    /// `LocalProcessVectorTerminalView`; iOS has no process view to do it in.
+    private var vtgTouchInput: VTGTouchInput?
+    #endif
 
     /// Optional response sink for VTG queries and host-generated events.
     ///
@@ -87,9 +97,9 @@ open class VectorTerminalView: TerminalView {
             }
             self.vtgOverlayView.scene = scene
             self.vtgOverlayView.isHidden = !self.areGraphicsLayersVisible
-            self.vtgOverlayView.needsDisplay = true
+            self.vtgOverlayView.vtgSetNeedsDisplay()
             self.refreshVTGPageView()
-            self.needsDisplay = true
+            self.vtgSetNeedsDisplay()
         },
         linkDetectionDidChange: { [weak self] settings in
             self?.applyVTGLinkDetectionSettings(settings)
@@ -104,12 +114,12 @@ open class VectorTerminalView: TerminalView {
         linkDecorationColor = settings.color
     }
 
-    public override init(frame: CGRect, font: NSFont?) {
+    public override init(frame: CGRect, font: VTGPlatformFont?) {
         super.init(frame: frame, font: font)
         setupVectorTerminalView()
     }
 
-    public override init(frame frameRect: NSRect) {
+    public override init(frame frameRect: CGRect) {
         super.init(frame: frameRect)
         setupVectorTerminalView()
     }
@@ -171,9 +181,9 @@ open class VectorTerminalView: TerminalView {
     public func setGraphicsLayersVisible(_ isVisible: Bool) {
         vtgSession.setGraphicsLayersVisible(isVisible)
         vtgOverlayView.isHidden = !isVisible
-        vtgOverlayView.needsDisplay = true
+        vtgOverlayView.vtgSetNeedsDisplay()
         refreshVTGPageView()
-        needsDisplay = true
+        vtgSetNeedsDisplay()
     }
 
     /// Whether a program currently has VTG Page Mode active.
@@ -197,13 +207,17 @@ open class VectorTerminalView: TerminalView {
         if let stacking = mode?.stacking, stacking != vtgPageStacking {
             vtgPageStacking = stacking
             vtgPageView.removeFromSuperview()
-            addSubview(vtgPageView, positioned: stacking == .text ? .below : .above, relativeTo: vtgOverlayView)
+            if stacking == .text {
+                vtgAddSubview(vtgPageView, below: vtgOverlayView)
+            } else {
+                vtgAddSubview(vtgPageView, above: vtgOverlayView)
+            }
             pinToEdges(vtgPageView)
         }
-        vtgPageView.needsDisplay = true
+        vtgPageView.vtgSetNeedsDisplay()
     }
 
-    private func pinToEdges(_ view: NSView) {
+    private func pinToEdges(_ view: VTGPlatformView) {
         NSLayoutConstraint.activate([
             view.leadingAnchor.constraint(equalTo: leadingAnchor),
             view.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -240,12 +254,14 @@ open class VectorTerminalView: TerminalView {
     /// responses must use the same coordinate system as drawing or cell-aligned
     /// graphics will be misplaced by the backing scale factor.
     open func currentVTGCellSize() -> (width: Double, height: Double)? {
-        guard let cellDimension, cellDimension.width > 0, cellDimension.height > 0 else {
+        // `cellDimension` is implicitly unwrapped on macOS and non-optional on
+        // iOS, so it is coerced to an optional to keep one nil-safe guard.
+        guard let cell = cellDimension as CellDimension?, cell.width > 0, cell.height > 0 else {
             return nil
         }
         return (
-            width: max(1, Double(cellDimension.width)),
-            height: max(1, Double(cellDimension.height))
+            width: max(1, Double(cell.width)),
+            height: max(1, Double(cell.height))
         )
     }
 
@@ -292,6 +308,7 @@ open class VectorTerminalView: TerminalView {
         vtgResponseHandler?(response)
     }
 
+    #if os(macOS)
     open override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         vtgOverlayView.frame = bounds
@@ -301,16 +318,33 @@ open class VectorTerminalView: TerminalView {
 
     open override func resizeSubviews(withOldSize oldSize: NSSize) {
         super.resizeSubviews(withOldSize: oldSize)
-        vtgOverlayView.frame = bounds
-        vtgOverlayView.needsDisplay = true
-        vtgPageView.frame = bounds
-        vtgPageView.needsDisplay = true
+        layoutVTGViews()
         notifyVTGResizeIfNeeded()
     }
 
     open override func viewDidEndLiveResize() {
         super.viewDidEndLiveResize()
         notifyVTGResizeIfNeeded(force: true)
+    }
+    #else
+    /// Keep the overlay and the page over the terminal as it lays out.
+    ///
+    /// UIKit sends every size change here — rotation, a split-view divider
+    /// dragged, a keyboard appearing — and there is no separate end-of-resize
+    /// moment to force a final event from.
+    open override func layoutSubviews() {
+        super.layoutSubviews()
+        layoutVTGViews()
+        notifyVTGResizeIfNeeded()
+    }
+    #endif
+
+    /// Resize the VTG views onto the terminal's bounds and redraw them.
+    private func layoutVTGViews() {
+        vtgOverlayView.frame = bounds
+        vtgOverlayView.vtgSetNeedsDisplay()
+        vtgPageView.frame = bounds
+        vtgPageView.vtgSetNeedsDisplay()
     }
 
     /// Draw committed VTG layer 0 primitives during SwiftTerm's CoreGraphics
@@ -332,7 +366,7 @@ open class VectorTerminalView: TerminalView {
 
     private func setupVectorTerminalView() {
         vtgOverlayView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(vtgOverlayView, positioned: .above, relativeTo: nil)
+        vtgAddSubview(vtgOverlayView, above: nil)
         NSLayoutConstraint.activate([
             vtgOverlayView.leadingAnchor.constraint(equalTo: leadingAnchor),
             vtgOverlayView.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -341,9 +375,13 @@ open class VectorTerminalView: TerminalView {
         ])
 
         vtgPageView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(vtgPageView, positioned: .above, relativeTo: vtgOverlayView)
+        vtgAddSubview(vtgPageView, above: vtgOverlayView)
         pinToEdges(vtgPageView)
         vtgPageView.isHidden = true
+
+        #if os(iOS)
+        vtgTouchInput = VTGTouchInput(view: self)
+        #endif
 
         terminal.registerPrivateSequenceHandler { [weak self] sequence in
             self?.vtgSession.handlePrivateSequence(sequence) ?? false

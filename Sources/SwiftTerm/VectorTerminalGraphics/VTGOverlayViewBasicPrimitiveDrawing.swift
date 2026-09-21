@@ -1,5 +1,9 @@
+#if os(macOS) || os(iOS)
 #if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 
 extension VTGOverlayView {
     func drawPixel(x: Double, y: Double, color: VTGColor, in context: CGContext) {
@@ -84,14 +88,14 @@ extension VTGOverlayView {
 
     func drawText(x: Double, y: Double, value: String, color: VTGColor, size: Double) {
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: size),
-            .foregroundColor: NSColor(color)
+            .font: VTGPlatformFont.systemFont(ofSize: size),
+            .foregroundColor: VTGPlatformColor(color)
         ]
         value.draw(at: CGPoint(x: x, y: y), withAttributes: attributes)
     }
 
     func drawImage(x: Double, y: Double, width: Double, height: Double, data: Data, filter: VTGSpriteFilter, in context: CGContext) {
-        guard let image = NSImage(data: data) else {
+        guard let image = VTGPlatformImage(data: data) else {
             return
         }
         context.saveGState()

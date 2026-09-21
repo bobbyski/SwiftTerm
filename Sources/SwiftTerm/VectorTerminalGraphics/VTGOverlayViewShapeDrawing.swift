@@ -1,5 +1,9 @@
+#if os(macOS) || os(iOS)
 #if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 
 extension VTGOverlayView {
     /// Draw a retained rectangle, using the rounded-rect path helper only when

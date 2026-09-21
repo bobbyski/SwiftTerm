@@ -55,6 +55,9 @@ enum HarnessScenes {
         + "They are drawn by VTGOverlayView through Core Graphics —\r\n"
         + "the same code that draws them on the Mac.\r\n"
         + styles
+        // Ask for taps. On iOS a tap arrives as a VTG click, the reply goes
+        // to vtgResponseHandler, and the harness prints it.
+        + vtg("mouseEvents,enabled=1,mode=click")
         + vtg("rect,id=panel,x=60,y=220,w=520,h=300,stroke=#5eead4,fill=#0b122099,width=2,radius=16")
         + vtg("circle,id=moon,cx=470,cy=300,r=44,stroke=none,fill=#f8fafc")
         + vtg("circle,id=shade,cx=492,cy=288,r=40,stroke=none,fill=#0b1220")

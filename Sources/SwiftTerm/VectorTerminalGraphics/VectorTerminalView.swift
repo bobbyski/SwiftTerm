@@ -24,6 +24,12 @@ open class VectorTerminalView: TerminalView {
     public let vtgPageView = VTGPageView(frame: .zero)
     private var vtgPageStacking: VTGPageStacking = .all
 
+    #if os(iOS)
+    /// Turns taps and drags into VTG mouse events. The Mac does this in
+    /// `LocalProcessVectorTerminalView`; iOS has no process view to do it in.
+    private var vtgTouchInput: VTGTouchInput?
+    #endif
+
     /// Optional response sink for VTG queries and host-generated events.
     ///
     /// Local-process terminals send VTG responses back to the child process.
@@ -372,6 +378,10 @@ open class VectorTerminalView: TerminalView {
         vtgAddSubview(vtgPageView, above: vtgOverlayView)
         pinToEdges(vtgPageView)
         vtgPageView.isHidden = true
+
+        #if os(iOS)
+        vtgTouchInput = VTGTouchInput(view: self)
+        #endif
 
         terminal.registerPrivateSequenceHandler { [weak self] sequence in
             self?.vtgSession.handlePrivateSequence(sequence) ?? false

@@ -45,6 +45,9 @@ extension VTGHostController {
         case "graphicsVisible":
             graphicsLayersVisible = parseEnabled(command.parameters)
             return []
+        case "rasterMode":
+            setRasterMode(parseEnabled(command.parameters))
+            return []
         case "linkDetection":
             var settings = linkDetectionSettings
             settings.isEnabled = parseEnabled(command.parameters)

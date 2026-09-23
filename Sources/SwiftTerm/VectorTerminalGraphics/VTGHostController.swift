@@ -27,6 +27,11 @@ public final class VTGHostController {
     public internal(set) var sendsMouseEvents = false
     public internal(set) var mouseMode: VTGMouseMode = .click
     public internal(set) var graphicsLayersVisible = true
+    /// Whether drawing is painted into the text plane and not retained —
+    /// see `VTGHostControllerRasterMode`.
+    public internal(set) var isRasterMode = false
+    /// Names the ids raster-mode drawing is given, so none is ever reused.
+    var rasterObjectCount = 0
     /// Current session-scoped link detection and decoration settings.
     public internal(set) var linkDetectionSettings = VTGLinkDetectionSettings()
 
@@ -89,6 +94,10 @@ public final class VTGHostController {
         sendsResizeEvents = false
         sendsMouseEvents = false
         mouseMode = .click
+        // A new guest program starts with the retained scene, whatever the last
+        // one asked for.
+        isRasterMode = false
+        rasterObjectCount = 0
         linkDetectionSettings = VTGLinkDetectionSettings()
         muteReason = nil
     }
@@ -159,7 +168,7 @@ public final class VTGHostController {
                 responses.append(contentsOf: pageResponses)
                 continue
             }
-            activeScene.apply(command)
+            activeScene.apply(isRasterMode ? rasterized(command) : command)
         }
         responses.append(contentsOf: flushPageBatchEvents(canvas: canvas))
         // Commands still applied above: a program on its way out clears its

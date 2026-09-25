@@ -63,6 +63,11 @@ public enum VTGResponseEncoder {
         apc(commandName, [("width", String(canvas.width)), ("height", String(canvas.height))])
     }
 
+    /// Encode a `screen` response: the locked screen, or that there is none.
+    public static func screen(fields: [(String, String)]) -> String {
+        apc("screen", fields.isEmpty ? [("locked", "0")] : fields)
+    }
+
     /// Encode a resize event for clients subscribed through `resizeEvents`.
     public static func resize(canvas: VTGCanvasSize) -> String {
         canvasResponse(commandName: "resize", canvas: canvas)

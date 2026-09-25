@@ -7,6 +7,17 @@ import UIKit
 
 /// Transparent overlay view that renders retained VTG primitives.
 public final class VTGOverlayView: VTGPlatformView {
+    /// The locked screen's size in VTG pixels, when a program locked one.
+    ///
+    /// Drawing then happens in those pixels and is scaled up to the view — a
+    /// 320×200 screen in a 960×600 view draws at ×3, every pixel a 3×3 block.
+    public var lockedCanvas: VTGCanvasSize? {
+        didSet {
+            guard lockedCanvas != oldValue else { return }
+            vtgSetNeedsDisplay()
+        }
+    }
+
     /// Current retained VTG scene to draw.
     public var scene: VTGGraphicsScene? {
         didSet {
@@ -56,7 +67,9 @@ public final class VTGOverlayView: VTGPlatformView {
             return
         }
 
-        draw(scene: scene, plane: overlayCompositingPlane, in: context, bounds: bounds)
+        drawLocked(in: context, bounds: bounds) { canvasBounds in
+            draw(scene: scene, plane: overlayCompositingPlane, in: context, bounds: canvasBounds)
+        }
     }
 
     /// Draw retained VTG scene primitives into a caller-supplied Core Graphics
@@ -91,6 +104,21 @@ public final class VTGOverlayView: VTGPlatformView {
             drawPrimitive(entry.primitive, in: context, scene: scene)
             context.restoreGState()
         }
+        context.restoreGState()
+    }
+
+    /// Runs `body` with the context scaled so drawing is in locked-screen
+    /// pixels, or unchanged when no screen is locked.
+    func drawLocked(in context: CGContext, bounds: CGRect, _ body: (CGRect) -> Void) {
+        guard let locked = lockedCanvas, locked.width > 0, locked.height > 0,
+              bounds.width > 0, bounds.height > 0 else {
+            body(bounds)
+            return
+        }
+        let canvasBounds = CGRect(x: 0, y: 0, width: CGFloat(locked.width), height: CGFloat(locked.height))
+        context.saveGState()
+        context.scaleBy(x: bounds.width / canvasBounds.width, y: bounds.height / canvasBounds.height)
+        body(canvasBounds)
         context.restoreGState()
     }
 

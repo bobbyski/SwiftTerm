@@ -88,6 +88,14 @@ final class VTGResponseEncoderFixtureTests {
             return "spriteTransform,id=enemy1,x=20,y=30,rotation=90,scale=0.75,anchorX=0.5,anchorY=1"
         case "spriteRemove":
             return "spriteRemove,id=enemy"
+        case "rasterMode":
+            return "rasterMode,enabled=1"
+        case "screenLock":
+            return "screenLock,width=320,height=200,cols=40,rows=25"
+        case "screenUnlock":
+            return "screenUnlock"
+        case "screen?":
+            return "screen?"
         case "viewportMode":
             return "viewportMode,width=320,height=200,scale=fit,layer=1"
         case "viewportScale":

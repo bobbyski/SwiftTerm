@@ -30,6 +30,21 @@ open class VectorTerminalView: TerminalView {
     private var vtgTouchInput: VTGTouchInput?
     #endif
 
+    /// The font this view had before a program locked the screen, put back
+    /// when the screen is unlocked.
+    var vtgFontBeforeScreenLock: VTGPlatformFont?
+
+    /// The cell a locked screen pins, or nil for a normal terminal whose cell
+    /// comes from its font. Read by `computeFontDimensions()`.
+    var vtgLockedCellDimension: CGSize?
+
+    /// Told when a program locks or unlocks the screen.
+    ///
+    /// A host that lays this view out itself re-centres it here, giving the
+    /// view ``vtgScreenRect(fitting:)`` of the space it has (see
+    /// `VectorTerminalView+ScreenLock.swift`).
+    public var onScreenLockChange: ((VTGScreenLock?) -> Void)?
+
     /// Optional response sink for VTG queries and host-generated events.
     ///
     /// Local-process terminals send VTG responses back to the child process.
@@ -239,6 +254,18 @@ open class VectorTerminalView: TerminalView {
         vtgSession.notifyResizeIfNeeded(force: force)
     }
 
+    /// The canvas coordinates events are reported in: the locked screen's
+    /// pixels when one is locked, the view's own size otherwise.
+    ///
+    /// A click three-quarters across a locked 320-pixel screen is x=240,
+    /// whatever the window is; that is what the program drew in.
+    func vtgEventCanvas(viewWidth: Double, viewHeight: Double) -> (width: Double, height: Double) {
+        guard let lock = vtgScreenLock else {
+            return (width: viewWidth, height: viewHeight)
+        }
+        return (width: Double(lock.width), height: Double(lock.height))
+    }
+
     /// Current VTG canvas size used by VTG queries and event coordinates.
     open func currentVTGCanvas() -> VTGCanvasSize {
         VTGCanvasSize.bestAvailable(
@@ -311,6 +338,8 @@ open class VectorTerminalView: TerminalView {
     #if os(macOS)
     open override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
+        // A locked screen's cell follows the view's size.
+        applyVTGScreenLock()
         vtgOverlayView.frame = bounds
         vtgPageView.frame = bounds
         notifyVTGResizeIfNeeded()
@@ -341,6 +370,9 @@ open class VectorTerminalView: TerminalView {
 
     /// Resize the VTG views onto the terminal's bounds and redraw them.
     private func layoutVTGViews() {
+        // A locked screen's cell follows the view's size, so it is recomputed
+        // before the overlay and page are told to redraw.
+        applyVTGScreenLock()
         vtgOverlayView.frame = bounds
         vtgOverlayView.vtgSetNeedsDisplay()
         vtgPageView.frame = bounds
@@ -361,7 +393,10 @@ open class VectorTerminalView: TerminalView {
         guard !scene.textPlanePrimitives.isEmpty else {
             return
         }
-        vtgOverlayView.draw(scene: scene, plane: .textPlane, in: context, bounds: bounds)
+        // Layer 0 draws in the same locked pixels the overlay does.
+        vtgOverlayView.drawLocked(in: context, bounds: bounds) { canvasBounds in
+            vtgOverlayView.draw(scene: scene, plane: .textPlane, in: context, bounds: canvasBounds)
+        }
     }
 
     private func setupVectorTerminalView() {
@@ -382,6 +417,12 @@ open class VectorTerminalView: TerminalView {
         #if os(iOS)
         vtgTouchInput = VTGTouchInput(view: self)
         #endif
+
+        vtgSession.screenLockDidChange = { [weak self] lock in
+            guard let self else { return }
+            self.applyVTGScreenLock()
+            self.onScreenLockChange?(lock)
+        }
 
         terminal.registerPrivateSequenceHandler { [weak self] sequence in
             self?.vtgSession.handlePrivateSequence(sequence) ?? false

@@ -16,6 +16,9 @@ public final class VTGHostSession {
     public var sendResponse: (String) -> Void
     public var sceneDidChange: (VTGGraphicsScene) -> Void
     public var linkDetectionDidChange: (VTGLinkDetectionSettings) -> Void
+    /// Told when a program locks or unlocks the screen (`screenLock`), so the
+    /// view can resize its grid and the host can re-centre it.
+    public var screenLockDidChange: (VTGScreenLock?) -> Void = { _ in }
 
     public init(
         controller: VTGHostController = VTGHostController(),
@@ -35,6 +38,14 @@ public final class VTGHostSession {
         self.sendResponse = sendResponse
         self.sceneDidChange = sceneDidChange
         self.linkDetectionDidChange = linkDetectionDidChange
+        controller.screenLockDidChange = { [weak self] lock in
+            self?.screenLockDidChange(lock)
+        }
+    }
+
+    /// The locked screen, when a program has asked for one.
+    public var screenLock: VTGScreenLock? {
+        controller.screenLock
     }
 
     /// Clears guest graphics/protocol state and publishes the empty scene.

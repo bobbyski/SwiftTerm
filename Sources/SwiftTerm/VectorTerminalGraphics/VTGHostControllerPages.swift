@@ -64,7 +64,9 @@ extension VTGHostController {
         }
         switch command.name {
         case "windowCanvas?":
-            return [VTGResponseEncoder.canvasResponse(commandName: "windowCanvas", canvas: canvas)]
+            // The window a page sits in is the locked screen, when there is one.
+            return [VTGResponseEncoder.canvasResponse(
+                commandName: "windowCanvas", canvas: screenCanvas(for: canvas))]
         case "textMeasure?":
             return [textMeasureResponse(command)]
         case "fonts?":
@@ -680,6 +682,9 @@ extension VTGHostController {
     /// page is open, the real canvas otherwise. `windowCanvas?` always
     /// reports the real one.
     public func reportedCanvas(for canvas: VTGCanvasSize) -> VTGCanvasSize {
+        // A locked screen replaces the window before any of this: it is the
+        // canvas the program draws on, and a page opens inside it.
+        let canvas = screenCanvas(for: canvas)
         guard let page = pageModeState?.sizeReportingPage else {
             return canvas
         }

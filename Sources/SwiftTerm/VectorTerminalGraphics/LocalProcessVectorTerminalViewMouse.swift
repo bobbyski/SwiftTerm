@@ -114,15 +114,20 @@ extension LocalProcessVectorTerminalView {
 
     private func vtgMouseSnapshot(for event: NSEvent) -> VTGMouseSnapshot? {
         let point = convert(event.locationInWindow, from: nil)
+        // A locked screen reports in its own pixels, so the fraction across
+        // the view is scaled into the screen rather than into the window.
+        let canvas = vtgEventCanvas(viewWidth: Double(bounds.width), viewHeight: Double(bounds.height))
+        let scaleX = bounds.width > 0 ? canvas.width / Double(bounds.width) : 1
+        let scaleY = bounds.height > 0 ? canvas.height / Double(bounds.height) : 1
         let mapper = VTGMouseCoordinateMapper(
             columns: terminal.cols,
             rows: terminal.rows,
-            canvasWidth: Double(bounds.width),
-            canvasHeight: Double(bounds.height)
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height
         )
         guard let position = mapper.cellPosition(
-            pixelX: Double(point.x),
-            pixelY: Double(bounds.height - point.y)
+            pixelX: Double(point.x) * scaleX,
+            pixelY: Double(bounds.height - point.y) * scaleY
         ) else {
             return nil
         }

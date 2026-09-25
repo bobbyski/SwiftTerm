@@ -18,6 +18,11 @@ open class VTGTerminalOverlayContainerView: VTGPlatformView {
     /// Called when layout or live resize should notify VTG resize subscribers.
     public var resizeNotification: ((_ force: Bool) -> Void)?
 
+    /// The edge constraints that make the terminal fill this container. They
+    /// come off while a program has a screen locked, when the terminal is a
+    /// centred rectangle instead (VTG `screenLock`).
+    private var fillConstraints: [NSLayoutConstraint] = []
+
     public init(
         frame frameRect: CGRect,
         terminalContentView: VTGPlatformView,
@@ -45,7 +50,7 @@ open class VTGTerminalOverlayContainerView: VTGPlatformView {
         addSubview(terminalContentView)
         addSubview(overlayView)
 
-        NSLayoutConstraint.activate([
+        fillConstraints = [
             terminalContentView.leadingAnchor.constraint(equalTo: leadingAnchor),
             terminalContentView.trailingAnchor.constraint(equalTo: trailingAnchor),
             terminalContentView.topAnchor.constraint(equalTo: topAnchor),
@@ -55,7 +60,8 @@ open class VTGTerminalOverlayContainerView: VTGPlatformView {
             overlayView.trailingAnchor.constraint(equalTo: trailingAnchor),
             overlayView.topAnchor.constraint(equalTo: topAnchor),
             overlayView.bottomAnchor.constraint(equalTo: bottomAnchor)
-        ])
+        ]
+        NSLayoutConstraint.activate(fillConstraints)
     }
 
     #if os(macOS)
@@ -89,9 +95,25 @@ open class VTGTerminalOverlayContainerView: VTGPlatformView {
     #endif
 
     /// The layout both platforms perform, wherever their framework calls it.
+    ///
+    /// Normally the terminal and the overlay fill the container. A program that
+    /// locked a screen gets that screen instead: the largest whole multiple of
+    /// it that fits, centred, with the rest left as border — scaling a 320×200
+    /// screen by anything but a whole number is what makes its pixels
+    /// rectangular and its glyphs fringed.
     private func layoutContents() {
-        terminalContentView.frame = bounds
-        overlayView.frame = bounds
+        let screen = (terminalContentView as? VectorTerminalView)?.vtgScreenRect(fitting: bounds.size)
+        let isLocked = screen != nil
+        if fillConstraints.first?.isActive == isLocked {
+            NSLayoutConstraint.deactivate(fillConstraints)
+            if !isLocked {
+                NSLayoutConstraint.activate(fillConstraints)
+            }
+            terminalContentView.translatesAutoresizingMaskIntoConstraints = isLocked
+            overlayView.translatesAutoresizingMaskIntoConstraints = isLocked
+        }
+        terminalContentView.frame = screen ?? bounds
+        overlayView.frame = screen ?? bounds
         overlayView.vtgSetNeedsDisplay()
         resizeNotification?(false)
     }

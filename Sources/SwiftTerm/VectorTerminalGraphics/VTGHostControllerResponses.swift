@@ -30,7 +30,7 @@ extension VTGHostController {
     ) -> [String] {
         switch command.name {
         case "capabilities?":
-            return [VTGResponseEncoder.capabilities(canvas: canvas, renderer: renderer)]
+            return [VTGResponseEncoder.capabilities(canvas: screenCanvas(for: canvas), renderer: renderer)]
         case "canvas?":
             return [VTGResponseEncoder.canvasResponse(commandName: "canvas", canvas: reportedCanvas(for: canvas))]
         case "size?":
@@ -38,10 +38,18 @@ extension VTGHostController {
         case "graphicsVisible?":
             return [VTGResponseEncoder.graphicsVisible(isVisible: graphicsLayersVisible)]
         case "glyphSize?":
-            guard let glyphSize else {
+            guard let glyphSize = screenGlyphSize(glyphSize) else {
                 return []
             }
             return [VTGResponseEncoder.glyphSize(width: glyphSize.width, height: glyphSize.height)]
+        case "screenLock":
+            return screenLockResponses(command, canvas: canvas)
+        case "screenUnlock":
+            return screenUnlockResponses(canvas: canvas)
+        case "screen?":
+            return [VTGResponseEncoder.screen(
+                fields: screenLock?.responseFields(layout: screenLayout(inFrame: canvas)) ?? []
+            )]
         case "graphicsVisible":
             graphicsLayersVisible = parseEnabled(command.parameters)
             return []

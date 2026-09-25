@@ -92,7 +92,7 @@ struct VTGPageModeCompatibilityTests {
         #expect(response.contains(",colors=hex-rgb|hex-rgba,page=buffers2|layers|"))
         #expect(response.contains(",pageMaxLayers=32,text=style|styled|attr|box|measure|fonts\(esc)\\"))
         #expect(!response.contains("pageBegin"), "page commands stay out of the shared commands list")
-        #expect(response.contains("version=1.5.7"))
+        #expect(response.contains("version=1.6.0"))
     }
 
     @Test func advertisedPageCommandsAreAnswered() {

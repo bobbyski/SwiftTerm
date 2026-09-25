@@ -264,6 +264,13 @@ extension TerminalView {
     // Computes the font dimensions once font.normal has been set
     func computeFontDimensions () -> CellDimension
     {
+        // A locked screen (VTG `screenLock`) fixes the cell: the grid has to
+        // be exactly the columns and rows the program asked for, inside the
+        // screen it asked for, and the font is then chosen to fit that cell
+        // rather than the cell being whatever the font measures.
+        if let locked = (self as? VectorTerminalView)?.vtgLockedCellDimension {
+            return locked
+        }
         let lineAscent = CTFontGetAscent (fontSet.normal)
         let lineDescent = CTFontGetDescent (fontSet.normal)
         let lineLeading = CTFontGetLeading (fontSet.normal)

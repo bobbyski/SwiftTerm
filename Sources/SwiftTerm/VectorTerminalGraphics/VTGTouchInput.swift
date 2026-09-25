@@ -168,14 +168,25 @@ final class VTGTouchInput: NSObject, UIGestureRecognizerDelegate {
         }
         let point = viewportPoint(location, in: view)
         let terminal = view.getTerminal()
+        // A locked screen reports in its own pixels, so the fraction across
+        // the view is scaled into the screen rather than into the window.
+        let canvas = view.vtgEventCanvas(
+            viewWidth: Double(view.bounds.width),
+            viewHeight: Double(view.bounds.height)
+        )
+        let scaleX = view.bounds.width > 0 ? canvas.width / Double(view.bounds.width) : 1
+        let scaleY = view.bounds.height > 0 ? canvas.height / Double(view.bounds.height) : 1
         let mapper = VTGMouseCoordinateMapper(
             columns: terminal.cols,
             rows: terminal.rows,
-            canvasWidth: Double(view.bounds.width),
-            canvasHeight: Double(view.bounds.height)
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height
         )
         // UIKit is top-left already: no `bounds.height - y` as on the Mac.
-        guard let position = mapper.cellPosition(pixelX: Double(point.x), pixelY: Double(point.y)) else {
+        guard let position = mapper.cellPosition(
+            pixelX: Double(point.x) * scaleX,
+            pixelY: Double(point.y) * scaleY
+        ) else {
             return nil
         }
         return VTGMouseSnapshot(

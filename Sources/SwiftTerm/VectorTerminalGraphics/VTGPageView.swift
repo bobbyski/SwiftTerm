@@ -98,11 +98,25 @@ public final class VTGPageView: VTGPlatformView {
     }
     #endif
 
+    /// The locked screen's size in VTG pixels — a page opens inside the
+    /// locked screen, not inside the window.
+    public var lockedCanvas: VTGCanvasSize? {
+        didSet {
+            guard lockedCanvas != oldValue else { return }
+            // The painter draws in the page's own coordinates; the scale is
+            // applied once here, around the whole page.
+            painter.lockedCanvas = lockedCanvas
+            vtgSetNeedsDisplay()
+        }
+    }
+
     public override func draw(_ dirtyRect: CGRect) {
         guard let context = vtgCurrentCGContext(), let page else {
             return
         }
-        draw(page: page, in: context, bounds: bounds)
+        painter.drawLocked(in: context, bounds: bounds) { canvasBounds in
+            draw(page: page, in: context, bounds: canvasBounds)
+        }
     }
 
     /// Draw a page into a top-left-origin context whose bounds are the

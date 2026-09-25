@@ -35,6 +35,16 @@ public final class VTGHostController {
     /// Current session-scoped link detection and decoration settings.
     public internal(set) var linkDetectionSettings = VTGLinkDetectionSettings()
 
+    /// The locked screen, when a program has asked for one (`screenLock`).
+    ///
+    /// Nothing locks a screen by itself: a terminal's canvas is its window and
+    /// its grid is whatever the font makes, until a program says otherwise.
+    public internal(set) var screenLock: VTGScreenLock?
+
+    /// Told when a program locks or unlocks the screen, so the view can resize
+    /// its grid and re-centre. Set by the session.
+    var screenLockDidChange: ((VTGScreenLock?) -> Void)?
+
     /// Whether the host has stopped answering VTG commands.
     ///
     /// A VTG response is only meaningful to the program that asked for it. Once
@@ -99,6 +109,11 @@ public final class VTGHostController {
         isRasterMode = false
         rasterObjectCount = 0
         linkDetectionSettings = VTGLinkDetectionSettings()
+        // A locked screen belongs to the program that asked for it.
+        if screenLock != nil {
+            screenLock = nil
+            screenLockDidChange?(nil)
+        }
         muteReason = nil
     }
 

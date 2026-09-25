@@ -17,9 +17,10 @@ public final class TerminalTranscriptDecoder: TerminalDelegate {
     public private(set) var endsWithNewline = false
 
     /// Creates a decoder at the command's recorded dimensions.
-    public init(columns: Int, rows: Int, onLine: @escaping (TerminalTranscriptLine) throws -> Void) {
+    public init(columns: Int, rows: Int, rendition: TerminalTranscriptRendition? = nil, onLine: @escaping (TerminalTranscriptLine) throws -> Void) {
         options = TerminalOptions(cols: max(2, min(1000, columns)), rows: max(2, min(200, rows)), scrollback: 256)
         self.onLine = onLine
+        if let rendition { terminal.restoreTranscriptRendition(rendition) }
         bufferIdentity = ObjectIdentifier(terminal.buffer)
     }
 
@@ -92,9 +93,9 @@ public final class TerminalTranscriptDecoder: TerminalDelegate {
                 : (cell.code == 0 ? " " : String(terminal.getCharacter(for: cell)))
             let run = TerminalTranscriptRun(text: text, foreground: resolve(attribute.fg),
                 background: resolve(attribute.bg), style: attribute.style.rawValue,
-                underline: attribute.underlineStyle.rawValue)
+                underline: attribute.underlineStyle.rawValue, underlineColor: attribute.underlineColor.map(resolve))
             if let last = runs.last, last.foreground == run.foreground, last.background == run.background,
-               last.style == run.style, last.underline == run.underline {
+               last.style == run.style, last.underline == run.underline, last.underlineColor == run.underlineColor {
                 runs[runs.count - 1].text += text
             } else { runs.append(run) }
             column += width

@@ -37,14 +37,18 @@ public struct TerminalTranscriptRun: Codable, Equatable, Sendable {
     /// Terminal UnderlineStyle raw value.
     public let underline: UInt8
 
+    /// Explicit underline ink; nil follows the text foreground.
+    public let underlineColor: TerminalTranscriptColor?
+
     /// Creates styled transcript text with symbolic defaults or explicit colors.
     public init(text: String, foreground: TerminalTranscriptColor = .defaultColor,
                 background: TerminalTranscriptColor = .defaultColor,
-                style: UInt8 = 0, underline: UInt8 = 0) {
+                style: UInt8 = 0, underline: UInt8 = 0, underlineColor: TerminalTranscriptColor? = nil) {
         self.text = text
         self.foreground = foreground
         self.background = background
         self.style = style
         self.underline = underline
+        self.underlineColor = underlineColor
     }
 }

@@ -482,6 +482,46 @@ open class Terminal {
     public var currentAttribute: Attribute {
         get { return curAttr }
     }
+    /// Captures immutable text interpretation state at a command boundary.
+    /// Safe to transfer to a background decoder; does not capture screen contents.
+    public func transcriptRendition() -> TerminalTranscriptRendition {
+        TerminalTranscriptRendition(attribute: currentAttribute,
+            palette: ansiColors.map(TerminalTranscriptRendition.RGB.init),
+            wraparound: wraparound, insertMode: insertMode,
+            reverseWraparound: reverseWraparound, characterSets: gCharsets,
+            activeCharacterSet: charset, characterSetLevel: gLevel, tabStops: buffer.tabStops,
+            originMode: originMode, marginMode: marginMode,
+            scrollTop: buffer.scrollTop, scrollBottom: buffer.scrollBottom,
+            marginLeft: buffer.marginLeft, marginRight: buffer.marginRight,
+            savedCursor: .init(buffer))
+    }
+
+    /// Seeds a fresh document decoder without inserting synthetic recorded bytes.
+    func restoreTranscriptRendition(_ rendition: TerminalTranscriptRendition) {
+        curAttr = rendition.attribute
+        ansiColors = rendition.palette.map { $0.color }
+        setWraparound(rendition.wraparound)
+        setInsertMode(rendition.insertMode)
+        reverseWraparound = rendition.reverseWraparound
+        gCharsets = rendition.characterSets
+        gLevel = rendition.characterSetLevel
+        charset = rendition.activeCharacterSet
+        rendition.savedCursor.restore(to: buffer)
+        originMode = rendition.originMode
+        setMarginMode(rendition.marginMode)
+        // Preserve valid regions when the document decoder bounds its dimensions.
+        buffer.scrollTop = max(0, min(rendition.scrollTop, buffer.rows - 2))
+        buffer.scrollBottom = max(buffer.scrollTop + 1, min(rendition.scrollBottom, buffer.rows - 1))
+        buffer.marginLeft = max(0, min(rendition.marginLeft, buffer.cols - 2))
+        buffer.marginRight = max(buffer.marginLeft + 1, min(rendition.marginRight, buffer.cols - 1))
+        // Decoder dimensions may be bounded independently of the live terminal.
+        buffer.tabStops = Array(rendition.tabStops.prefix(buffer.cols))
+        if buffer.tabStops.count < buffer.cols {
+            buffer.tabStops.append(contentsOf: repeatElement(false,
+                count: buffer.cols - buffer.tabStops.count))
+        }
+    }
+
     // The requested conformance from DECSCL command
     enum TerminalConformance {
         case vt100

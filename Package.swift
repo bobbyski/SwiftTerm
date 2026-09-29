@@ -9,7 +9,9 @@ let platformExcludes = ["Apple", "Mac", "iOS"]
 let platformExcludes: [String] = []
 #endif
 
-let isGitHubActions = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true"
+// `getenv`, not `ProcessInfo`'s environment: swift.org Swift 6.3.1 crashes compiling
+// any manifest that reads it (ActiveUI's CROSSPLATFORM_PLAN.md, fact 8).
+let isGitHubActions = getenv("GITHUB_ACTIONS").map { String(cString: $0) } == "true"
 let disableBenchmark = true
 let benchmarkDependencies: [Package.Dependency] = (isGitHubActions || disableBenchmark) ? [] : [
     .package(url: "https://github.com/ordo-one/package-benchmark", .upToNextMajor(from: "1.29.11"))

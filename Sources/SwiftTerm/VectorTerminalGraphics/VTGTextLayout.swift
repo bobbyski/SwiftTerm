@@ -685,4 +685,12 @@ extension VTGColor {
         CGColor(red: CGFloat(red), green: CGFloat(green), blue: CGFloat(blue), alpha: CGFloat(alpha))
     }
 }
+#else
+/// Without Core Text there is no font catalogue to read: a page that asks for
+/// the fonts hears none, and the generic family. (Local change: SwiftTerm on
+/// Linux, for ActiveUI's terminal builds.)
+enum VTGFontCatalog {
+    static var availableFamilies: [String] { [] }
+    static var defaultFamily: String { "terminal" }
+}
 #endif

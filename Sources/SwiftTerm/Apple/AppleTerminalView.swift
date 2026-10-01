@@ -15,7 +15,12 @@ import MetalKit
 #if canImport(ImageIO)
 import ImageIO
 #endif
+// Only the iOS debug preview at the end of this file uses SwiftUI. Imported
+// unconditionally, it made every macOS build of SwiftTerm link SwiftUI, and
+// ActiveUI, which links this package, links no SwiftUI. (Local change.)
+#if canImport(UIKit) && DEBUG
 import SwiftUI
+#endif
 
 let SwiftTermUnderlineStyleKey = NSAttributedString.Key("SwiftTermUnderlineStyle")
 

@@ -17,7 +17,11 @@ import UIKit
 import CoreText
 import CoreGraphics
 import os
+// Only the debug preview at the end of this file uses SwiftUI. (Local change:
+// a release build links no SwiftUI.)
+#if DEBUG
 import SwiftUI
+#endif
 #if canImport(MetalKit)
 import MetalKit
 #endif

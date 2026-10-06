@@ -51,7 +51,7 @@ extension VTGHostController {
                 fields: screenLock?.responseFields(layout: screenLayout(inFrame: canvas)) ?? []
             )]
         case "graphicsVisible":
-            graphicsLayersVisible = parseEnabled(command.parameters)
+            setProgramGraphicsLayersVisible(parseEnabled(command.parameters))
             return []
         case "rasterMode":
             setRasterMode(parseEnabled(command.parameters))

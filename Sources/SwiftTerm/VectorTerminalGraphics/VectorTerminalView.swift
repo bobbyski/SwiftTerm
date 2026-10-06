@@ -45,6 +45,12 @@ open class VectorTerminalView: TerminalView {
     /// `VectorTerminalView+ScreenLock.swift`).
     public var onScreenLockChange: ((VTGScreenLock?) -> Void)?
 
+    /// Told when a program shows or hides the graphics layers itself
+    /// (`graphicsVisible`), and when they go back to the host's choice as
+    /// the program leaves. A host with a Show Graphics menu updates it here.
+    /// Not called for the host's own ``setGraphicsLayersVisible(_:)``.
+    public var onGraphicsLayersVisibleChange: ((Bool) -> Void)?
+
     /// Optional response sink for VTG queries and host-generated events.
     ///
     /// Local-process terminals send VTG responses back to the child process.
@@ -423,6 +429,9 @@ open class VectorTerminalView: TerminalView {
             self.applyVTGScreenLock()
             self.onScreenLockChange?(lock)
         }
+        vtgSession.graphicsLayersVisibleDidChange = { [weak self] isVisible in
+            self?.onGraphicsLayersVisibleChange?(isVisible)
+        }
 
         terminal.registerPrivateSequenceHandler { [weak self] sequence in
             self?.vtgSession.handlePrivateSequence(sequence) ?? false
@@ -434,9 +443,12 @@ open class VectorTerminalView: TerminalView {
                 return
             }
             self?.vtgSession.endPageMode(reason: "promptMark")
+            // Graphics a program hid come back as the user had them.
+            self?.vtgSession.restoreHostGraphicsLayersVisible()
         }
         terminal.fullResetObserver = { [weak self] in
             self?.vtgSession.endPageMode(reason: "reset")
+            self?.vtgSession.restoreHostGraphicsLayersVisible()
         }
         vtgOverlayView.isHidden = !areGraphicsLayersVisible
     }

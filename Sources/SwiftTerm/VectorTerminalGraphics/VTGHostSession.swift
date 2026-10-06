@@ -19,6 +19,11 @@ public final class VTGHostSession {
     /// Told when a program locks or unlocks the screen (`screenLock`), so the
     /// view can resize its grid and the host can re-centre it.
     public var screenLockDidChange: (VTGScreenLock?) -> Void = { _ in }
+    /// Told when a program shows or hides the graphics (`graphicsVisible`),
+    /// or the host's choice comes back when it leaves — so a menu that shows
+    /// the state can follow it. Not called for the host's own
+    /// `setGraphicsLayersVisible`.
+    public var graphicsLayersVisibleDidChange: (Bool) -> Void = { _ in }
 
     public init(
         controller: VTGHostController = VTGHostController(),
@@ -40,6 +45,9 @@ public final class VTGHostSession {
         self.linkDetectionDidChange = linkDetectionDidChange
         controller.screenLockDidChange = { [weak self] lock in
             self?.screenLockDidChange(lock)
+        }
+        controller.graphicsLayersVisibleDidChange = { [weak self] isVisible in
+            self?.graphicsLayersVisibleDidChange(isVisible)
         }
     }
 
@@ -202,6 +210,17 @@ public final class VTGHostSession {
     /// Show or hide all VTG graphics layers without clearing retained objects.
     public func setGraphicsLayersVisible(_ isVisible: Bool) {
         controller.setGraphicsLayersVisible(isVisible)
+        sceneDidChange(controller.scene)
+    }
+
+    /// Puts back the host's choice of graphics visibility if a program
+    /// overrode it: for a host that can tell the program has gone, such as a
+    /// shell prompt mark returning.
+    public func restoreHostGraphicsLayersVisible() {
+        guard controller.hostGraphicsLayersVisible != nil else {
+            return
+        }
+        controller.restoreHostGraphicsLayersVisible()
         sceneDidChange(controller.scene)
     }
 

@@ -27,6 +27,13 @@ public final class VTGHostController {
     public internal(set) var sendsMouseEvents = false
     public internal(set) var mouseMode: VTGMouseMode = .click
     public internal(set) var graphicsLayersVisible = true
+    /// The host's own choice of `graphicsLayersVisible`, kept while a program
+    /// has overridden it with `graphicsVisible`; nil when no program has.
+    ///
+    /// It is put back when that program leaves — `detach`, the host muting
+    /// for a program that has gone, or a session reset — so a program can
+    /// never leave the graphics hidden for good.
+    public internal(set) var hostGraphicsLayersVisible: Bool?
     /// Whether drawing is painted into the text plane and not retained —
     /// see `VTGHostControllerRasterMode`.
     public internal(set) var isRasterMode = false
@@ -44,6 +51,11 @@ public final class VTGHostController {
     /// Told when a program locks or unlocks the screen, so the view can resize
     /// its grid and re-centre. Set by the session.
     var screenLockDidChange: ((VTGScreenLock?) -> Void)?
+
+    /// Told when graphics visibility changes other than by the host's own
+    /// `setGraphicsLayersVisible`: a program's `graphicsVisible`, or the
+    /// host's choice coming back when the program leaves. Set by the session.
+    var graphicsLayersVisibleDidChange: ((Bool) -> Void)?
 
     /// Whether the host has stopped answering VTG commands.
     ///
@@ -91,9 +103,11 @@ public final class VTGHostController {
     }
 
     /// Starts a fresh guest session, clearing retained graphics and subscriptions.
-    /// The user's graphics visibility choice is preserved.
+    /// The user's graphics visibility choice is preserved, and put back if a
+    /// program had overridden it.
     public func resetSession() {
         parser.reset()
+        restoreHostGraphicsLayersVisible()
         pendingFrame = nil
         pageModeState = nil
         framePageModeState = nil
@@ -151,6 +165,8 @@ public final class VTGHostController {
                 // A page left up by a departing program would cover the shell.
                 pageModeState = nil
                 framePageModeState = nil
+                // So would graphics it hid stay hidden.
+                restoreHostGraphicsLayersVisible()
                 continue
             }
 
@@ -209,6 +225,7 @@ public final class VTGHostController {
         // Nobody is left to take the page down, so the host does.
         pageModeState = nil
         framePageModeState = nil
+        restoreHostGraphicsLayersVisible()
     }
 
     /// End page mode on the host's initiative: a dismiss command, a shell
@@ -235,8 +252,40 @@ public final class VTGHostController {
     }
 
     /// Show or hide all VTG graphics layers without mutating retained objects.
+    ///
+    /// This is the host's choice — the user's, through a menu — and it ends
+    /// any program's override: the user's toggle wins, and is what a
+    /// departing program leaves behind.
     public func setGraphicsLayersVisible(_ isVisible: Bool) {
         graphicsLayersVisible = isVisible
+        hostGraphicsLayersVisible = nil
+    }
+
+    /// A program's `graphicsVisible`. The host's choice is kept, to be put
+    /// back when the program leaves.
+    func setProgramGraphicsLayersVisible(_ isVisible: Bool) {
+        if hostGraphicsLayersVisible == nil {
+            hostGraphicsLayersVisible = graphicsLayersVisible
+        }
+        changeGraphicsLayersVisible(isVisible)
+    }
+
+    /// Puts back the host's choice of graphics visibility after a program
+    /// overrode it. Does nothing when no program did.
+    public func restoreHostGraphicsLayersVisible() {
+        guard let hostChoice = hostGraphicsLayersVisible else {
+            return
+        }
+        hostGraphicsLayersVisible = nil
+        changeGraphicsLayersVisible(hostChoice)
+    }
+
+    private func changeGraphicsLayersVisible(_ isVisible: Bool) {
+        guard graphicsLayersVisible != isVisible else {
+            return
+        }
+        graphicsLayersVisible = isVisible
+        graphicsLayersVisibleDidChange?(isVisible)
     }
 
     struct PendingFrame {

@@ -773,6 +773,9 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             if gestureRecognizer.state != .ended {
                 return
             }
+            if isSoftwareKeyboardHidden && (showsHiddenKeyboardOnTap?() ?? true) {
+                isSoftwareKeyboardHidden = false
+            }
 
             if allowMouseReporting && !shiftBypassesMouseReporting(for: gestureRecognizer) && terminal.mouseMode.sendButtonPress() {
                 sharedMouseEvent(gestureRecognizer: gestureRecognizer, release: false)
@@ -1209,6 +1212,43 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     
     var _inputAccessory: UIView?
     var _inputView: UIView?
+    var keyBarWhileHidden: UIView?
+    let noKeyboard = UIView (frame: .zero)
+
+    ///
+    /// Puts the software keyboard and its accessory away, or brings them back.
+    /// While they are away the view stays first responder, so a hardware
+    /// keyboard still types; nothing covers the terminal.
+    ///
+    /// The accessory's keyboard button goes from the system keyboard, to the
+    /// panel of terminal keys, to this. A tap on the terminal brings the
+    /// keyboard back, unless `showsHiddenKeyboardOnTap` says not to.
+    ///
+    public var isSoftwareKeyboardHidden: Bool = false {
+        didSet {
+            guard isSoftwareKeyboardHidden != oldValue else { return }
+            if isSoftwareKeyboardHidden {
+                keyBarWhileHidden = _inputAccessory
+                _inputView = noKeyboard
+                _inputAccessory = nil
+            } else {
+                _inputView = nil
+                _inputAccessory = keyBarWhileHidden
+                keyBarWhileHidden = nil
+            }
+            UIView.performWithoutAnimation {
+                reloadInputViews ()
+            }
+        }
+    }
+
+    ///
+    /// Asked when the terminal is tapped while the keyboard is hidden: true
+    /// brings it back. With none set, a tap always does. An app whose taps
+    /// mean something else at the moment, such as a game played by touch,
+    /// answers false.
+    ///
+    public var showsHiddenKeyboardOnTap: (() -> Bool)?
     
     ///
     /// You can set this property to a UIView to be your input accessory, by default

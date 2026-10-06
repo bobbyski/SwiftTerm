@@ -147,24 +147,26 @@ public class TerminalAccessory: UIInputView, UIInputViewAudioFeedback {
     }
 
 
+    /// The system keyboard, then the panel of terminal keys, then nothing at
+    /// all; a tap on the terminal brings the keyboard back.
     @objc func toggleInputKeyboard (_ sender: UIButton) {
         guard let tv = terminalView else { return }
 
-        if tv.inputView == nil {
-            #if os(visionOS)
-            tv.inputView = KeyboardView (frame: CGRect (origin: CGPoint.zero,
-                                                        size: CGSize (width: 300,
-                                                                      height: 400)),
-                                         terminalView: terminalView)
-            #else
-            tv.inputView = KeyboardView (frame: CGRect (origin: CGPoint.zero,
-                                                        size: CGSize (width: UIScreen.main.bounds.width,
-                                                                      height: max((UIScreen.main.bounds.height / 5),140))),
-                                         terminalView: terminalView)
-            #endif
-        } else {
-            tv.inputView = nil
+        if tv.inputView != nil {
+            tv.isSoftwareKeyboardHidden = true
+            return
         }
+        #if os(visionOS)
+        tv.inputView = KeyboardView (frame: CGRect (origin: CGPoint.zero,
+                                                    size: CGSize (width: 300,
+                                                                  height: 400)),
+                                     terminalView: terminalView)
+        #else
+        tv.inputView = KeyboardView (frame: CGRect (origin: CGPoint.zero,
+                                                    size: CGSize (width: UIScreen.main.bounds.width,
+                                                                  height: max((UIScreen.main.bounds.height / 5),140))),
+                                     terminalView: terminalView)
+        #endif
         UIView.performWithoutAnimation {
             tv.reloadInputViews()
         }

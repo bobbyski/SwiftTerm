@@ -32,6 +32,7 @@ public class TerminalAccessory: UIInputView, UIInputViewAudioFeedback {
     
     var touchButton: UIButton!
     var keyboardButton: UIButton!
+    var functionKeysButton: UIButton!
     
     var views: [UIView] = []
     
@@ -147,26 +148,37 @@ public class TerminalAccessory: UIInputView, UIInputViewAudioFeedback {
     }
 
 
-    /// The system keyboard, then the panel of terminal keys, then nothing at
-    /// all; a tap on the terminal brings the keyboard back.
-    @objc func toggleInputKeyboard (_ sender: UIButton) {
+    /// Puts the keyboard away: the system keyboard or the panel of terminal
+    /// keys, and this bar with it, so nothing covers the terminal. A tap on
+    /// the terminal brings the system keyboard back.
+    ///
+    /// Dismissing is one tap and goes all the way. The panel of terminal keys
+    /// is not a stop on the way down; it has its own button (`fn`).
+    @objc func hideKeyboard (_ sender: UIButton) {
+        terminalView?.isSoftwareKeyboardHidden = true
+    }
+
+    /// Swaps the system keyboard for the panel of terminal keys — function
+    /// keys, Home/End, Page Up/Down — and back.
+    @objc func toggleFunctionKeys (_ sender: UIButton) {
         guard let tv = terminalView else { return }
 
         if tv.inputView != nil {
-            tv.isSoftwareKeyboardHidden = true
-            return
+            tv.inputView = nil
+        } else {
+            #if os(visionOS)
+            tv.inputView = KeyboardView (frame: CGRect (origin: CGPoint.zero,
+                                                        size: CGSize (width: 300,
+                                                                      height: 400)),
+                                         terminalView: terminalView)
+            #else
+            tv.inputView = KeyboardView (frame: CGRect (origin: CGPoint.zero,
+                                                        size: CGSize (width: UIScreen.main.bounds.width,
+                                                                      height: max((UIScreen.main.bounds.height / 5),140))),
+                                         terminalView: terminalView)
+            #endif
         }
-        #if os(visionOS)
-        tv.inputView = KeyboardView (frame: CGRect (origin: CGPoint.zero,
-                                                    size: CGSize (width: 300,
-                                                                  height: 400)),
-                                     terminalView: terminalView)
-        #else
-        tv.inputView = KeyboardView (frame: CGRect (origin: CGPoint.zero,
-                                                    size: CGSize (width: UIScreen.main.bounds.width,
-                                                                  height: max((UIScreen.main.bounds.height / 5),140))),
-                                     terminalView: terminalView)
-        #endif
+        functionKeysButton?.isSelected = tv.inputView != nil
         UIView.performWithoutAnimation {
             tv.reloadInputViews()
         }
@@ -218,13 +230,18 @@ public class TerminalAccessory: UIInputView, UIInputViewAudioFeedback {
         touchButton = makeButton ("", #selector(toggleTouch), icon: "hand.draw", isNormal: false)
         touchButton.isSelected = terminalView?.allowMouseReporting ?? false
         rightViews.append (touchButton)
-        keyboardButton = makeButton ("", #selector(toggleInputKeyboard), icon: "keyboard.chevron.compact.down", isNormal: false)
+        functionKeysButton = makeButton ("fn", #selector(toggleFunctionKeys), isNormal: false)
+        functionKeysButton.isSelected = terminalView?.inputView != nil
+        functionKeysButton.accessibilityLabel = "Function keys"
+        rightViews.append (functionKeysButton)
+        keyboardButton = makeButton ("", #selector(hideKeyboard), icon: "keyboard.chevron.compact.down", isNormal: false)
+        keyboardButton.accessibilityLabel = "Hide keyboard"
         rightViews.append (keyboardButton)
 
         // calculate aditional space we can give to keys we want to be bigger (all top level except function keys)
         let minWidth: CGFloat = useSmall ? 20.0 : (UIDevice.current.userInterfaceIdiom == .phone) ? 22 : 32
         let maxFuncKeyWidth = (minWidth + buttonPad) * 10
-        let importantKeysCount: Double = useSmall ? 11 : 13
+        let importantKeysCount: Double = useSmall ? 12 : 14
         let maxSpaceForImportantKeys = frame.width - maxFuncKeyWidth - buttonPad
         var aditionalSpaceForImportantKeys: CGFloat = 0
         if maxSpaceForImportantKeys > 0 {

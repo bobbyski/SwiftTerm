@@ -1220,9 +1220,10 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     /// While they are away the view stays first responder, so a hardware
     /// keyboard still types; nothing covers the terminal.
     ///
-    /// The accessory's keyboard button goes from the system keyboard, to the
-    /// panel of terminal keys, to this. A tap on the terminal brings the
-    /// keyboard back, unless `showsHiddenKeyboardOnTap` says not to.
+    /// The accessory's keyboard button does this in one tap, from the system
+    /// keyboard or from the panel of terminal keys (which has its own `fn`
+    /// button). A tap on the terminal brings the system keyboard back, unless
+    /// `showsHiddenKeyboardOnTap` says not to.
     ///
     public var isSoftwareKeyboardHidden: Bool = false {
         didSet {
@@ -1232,9 +1233,11 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
                 _inputView = noKeyboard
                 _inputAccessory = nil
             } else {
+                // Back as the system keyboard, whichever was up before.
                 _inputView = nil
                 _inputAccessory = keyBarWhileHidden
                 keyBarWhileHidden = nil
+                (_inputAccessory as? TerminalAccessory)?.functionKeysButton?.isSelected = false
             }
             UIView.performWithoutAnimation {
                 reloadInputViews ()

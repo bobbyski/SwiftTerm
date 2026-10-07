@@ -723,8 +723,10 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
 
     func encodeFlags (release: Bool) -> Int
     {
+        // Button code 0 is the left button; 1, which this used to send, is
+        // the middle one, and a program waiting for a left click never saw it.
         let encodedFlags = terminal.encodeButton(
-            button: 1,
+            button: 0,
             release: release,
             shift: false,
             meta: false,
@@ -777,13 +779,9 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
                 isSoftwareKeyboardHidden = false
             }
 
-            if allowMouseReporting && !shiftBypassesMouseReporting(for: gestureRecognizer) && terminal.mouseMode.sendButtonPress() {
-                sharedMouseEvent(gestureRecognizer: gestureRecognizer, release: false)
-
-                if terminal.mouseMode.sendButtonRelease() {
-                    sharedMouseEvent(gestureRecognizer: gestureRecognizer, release: true)
-                }
-            } else {
+            // While the program reads the mouse, MouseTouchTracker has the
+            // touch and this tap never fires; what is left is the terminal's.
+            do {
                 let tapHit = calculateTapHit(gesture: gestureRecognizer).grid
                 if let link = linkForClick(at: tapHit, hasCommandModifier: commandActive) {
                     terminalDelegate?.terminalView(self, didRequestOpenLink: link)
@@ -819,14 +817,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             return
         }
 
-        if allowMouseReporting && !shiftBypassesMouseReporting(for: gestureRecognizer) && terminal.mouseMode.sendButtonPress() {
-            sharedMouseEvent(gestureRecognizer: gestureRecognizer, release: false)
-            
-            if terminal.mouseMode.sendButtonRelease() {
-                sharedMouseEvent(gestureRecognizer: gestureRecognizer, release: true)
-            }
-            return
-        } else {
+        // The mouse case is MouseTouchTracker's, which recognises first.
+        do {
             let hit = calculateTapHit(gesture: gestureRecognizer).grid
             selection.selectWordOrExpression(at: hit, in: terminal.displayBuffer)
             selection.selectionMode = .character
@@ -844,14 +836,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             return
         }
 
-        if allowMouseReporting && !shiftBypassesMouseReporting(for: gestureRecognizer) && terminal.mouseMode.sendButtonPress() {
-            sharedMouseEvent(gestureRecognizer: gestureRecognizer, release: false)
-
-            if terminal.mouseMode.sendButtonRelease() {
-                sharedMouseEvent(gestureRecognizer: gestureRecognizer, release: true)
-            }
-            return
-        } else {
+        // The mouse case is MouseTouchTracker's, which recognises first.
+        do {
             let hit = calculateTapHit(gesture: gestureRecognizer).grid
             selection.select(row: hit.row)
             enableSelectionPanGesture()
@@ -1048,6 +1034,14 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         }
     }
     
+    var mouseTouchTracker: MouseTouchTracker?
+
+    ///
+    /// While a program reads the mouse, how long a finger must be held still
+    /// before it presses the button, so that moving it drags. A finger that
+    /// moves sooner moves the pointer and clicks when it lifts.
+    ///
+    public var touchMouseHoldDuration: TimeInterval = 0.4
     var panMouseGesture: UIPanGestureRecognizer?
     func enableMousePanGesture () {
         guard panMouseGesture == nil else {
@@ -1086,6 +1080,13 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     
     func setupGestures ()
     {
+        // Touches as the mouse, while the program reads the mouse. Added
+        // first, and it recognises on touch-down, so the gestures below only
+        // see touches the program does not want.
+        let mouseTouches = MouseTouchTracker(terminalView: self)
+        addGestureRecognizer(mouseTouches)
+        mouseTouchTracker = mouseTouches
+
         let longPress = UILongPressGestureRecognizer (target: self, action: #selector(longPress(_:)))
         longPress.minimumPressDuration = 0.7
         addGestureRecognizer(longPress)

@@ -1695,12 +1695,26 @@ extension TerminalView {
         // Suppress during sync blocks and inter-block gaps.
         guard !terminal.synchronizedOutputActive && !inSyncSequence else { return }
         updateCursorPosition()
+        #if canImport(MetalKit)
+        let cursorMoved = metalCursorMoved()
+        #endif
         guard let (rowStart, rowEnd) = terminal.getUpdateRange () else {
             if notifyUpdateChanges {
                 let buffer = terminal.displayBuffer
                 let y = buffer.yDisp+buffer.y
                 terminalDelegate?.rangeChanged (source: self, startY: y, endY: y)
             }
+            #if canImport(MetalKit)
+            // Output that only moves the cursor — `CSI C`, which is how zsh
+            // moves right, or a backspace — changes no cell, so nothing above
+            // asks for a frame. The Metal renderer draws the cursor itself and
+            // draws only when asked, so a steady cursor stayed where it was
+            // until the next character typed (VGT-10). A blinking one hid
+            // this: every blink is a frame.
+            if cursorMoved {
+                requestMetalDisplay()
+            }
+            #endif
             return
         }
         if notifyUpdateChanges {
@@ -1852,7 +1866,19 @@ extension TerminalView {
         guard let metalView = metalView else {
             return
         }
+        metalDisplayRequests += 1
         metalView.setNeedsDisplay(metalView.bounds)
+    }
+
+    /// Whether the cursor has moved since the Metal renderer was last asked
+    /// for a frame, and notes where it is now.
+    func metalCursorMoved() -> Bool {
+        guard metalView != nil else { return false }
+        let buffer = terminal.displayBuffer
+        let position = Position(col: buffer.x, row: buffer.yBase + buffer.y)
+        guard position != metalCursorPosition else { return false }
+        metalCursorPosition = position
+        return true
     }
 
     func queueMetalDisplay() {

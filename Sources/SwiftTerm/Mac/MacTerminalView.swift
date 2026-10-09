@@ -136,6 +136,11 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     private var useMetalRenderer = false
     private var useSVGRenderer = false
     var metalDirtyRange: ClosedRange<Int>?
+    /// Where the Metal renderer last drew the cursor, as column and absolute
+    /// row: a move from there needs a frame even when no cell changed.
+    var metalCursorPosition: Position?
+    /// How many frames have been asked of the Metal renderer; tests read it.
+    var metalDisplayRequests = 0
     var pendingMetalDisplay: Bool = false
     /// Controls how the Metal renderer builds GPU buffers each frame.
     ///

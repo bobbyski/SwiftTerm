@@ -228,6 +228,11 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     private var useMetalRenderer = false
     private var useSVGRenderer = false
     var metalDirtyRange: ClosedRange<Int>?
+    /// Where the Metal renderer last drew the cursor, as column and absolute
+    /// row: a move from there needs a frame even when no cell changed.
+    var metalCursorPosition: Position?
+    /// How many frames have been asked of the Metal renderer; tests read it.
+    var metalDisplayRequests = 0
 
     /// Whether the terminal view is currently using the Metal GPU renderer.
     ///

@@ -40,7 +40,7 @@ public enum VTGPathCommand: Equatable {
     case close
 }
 
-/// RGBA color normalized for AppKit/SwiftUI drawing.
+/// RGBA color normalized for AppKit and UIKit drawing.
 public struct VTGColor: Equatable {
     public var red: Double
     public var green: Double

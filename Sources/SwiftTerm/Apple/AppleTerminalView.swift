@@ -15,12 +15,6 @@ import MetalKit
 #if canImport(ImageIO)
 import ImageIO
 #endif
-// Only the iOS debug preview at the end of this file uses SwiftUI. Imported
-// unconditionally, it made every macOS build of SwiftTerm link SwiftUI, and
-// ActiveUI, which links this package, links no SwiftUI. (Local change.)
-#if canImport(UIKit) && DEBUG
-import SwiftUI
-#endif
 
 let SwiftTermUnderlineStyleKey = NSAttributedString.Key("SwiftTermUnderlineStyle")
 
@@ -2429,15 +2423,5 @@ extension TerminalView {
 
 }
 
-#if canImport(UIKit) && DEBUG
-#Preview {
-    SwiftUITerminalView { t in
-        t.nativeBackgroundColor = UIColor.black
-        t.selectedTextBackgroundColor = UIColor.red
-        t.caretColor = UIColor.blue
-        t.feed(text: "م اَلْفِرَاق\n\rbbفِaa\n\r123456\n\r🖐🏾 or 👩‍👩‍👦‍👦")
-    }
-}
-#endif
 
 #endif

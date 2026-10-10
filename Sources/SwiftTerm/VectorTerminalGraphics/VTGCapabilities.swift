@@ -50,9 +50,11 @@ public extension VTGResponseEncoder {
 
     static let defaultFormats = ["png", "jpeg", "indexed"]
     static let defaultRasterFeatures = ["image", "filter"]
-    static let defaultSpriteFeatures = ["bitmap", "vector", "indexed", "move", "rotate", "scale", "filter"]
+    /// `persistent`: uploaded assets survive `clear`; only `spriteRemove`,
+    /// `spriteClear` or a new program remove them.
+    static let defaultSpriteFeatures = ["bitmap", "vector", "indexed", "move", "rotate", "scale", "filter", "persistent"]
     static let defaultColors = ["hex-rgb", "hex-rgba"]
-    static let defaultEvents = ["mouse", "resize", "frame"]
+    static let defaultEvents = ["mouse", "resize", "frame", "commandRejected"]
 
     static let defaultCommands = [
         "begin",
@@ -72,6 +74,7 @@ public extension VTGResponseEncoder {
         "linkDetection",
         "resizeEvents",
         "mouseEvents",
+        "errorEvents",
         "defaultLayer",
         "layer",
         "layerScroll",
@@ -129,6 +132,7 @@ public extension VTGResponseEncoder {
         "linkDetection",
         "resizeEvents",
         "mouseEvents",
+        "errorEvents",
         "startFrame",
         "endFrame",
         "cancelFrame"

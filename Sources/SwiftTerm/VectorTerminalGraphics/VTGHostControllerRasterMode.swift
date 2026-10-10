@@ -42,7 +42,9 @@ extension VTGHostController {
         }
         isRasterMode = enabled
         rasterObjectCount = 0
-        scene.clear()
+        // Uploaded sprite assets stay: raster mode draws sprites too, and it
+        // is the drawing's ids, not the pictures, that cannot carry across.
+        scene.clearDrawing()
         pendingFrame = nil
     }
 

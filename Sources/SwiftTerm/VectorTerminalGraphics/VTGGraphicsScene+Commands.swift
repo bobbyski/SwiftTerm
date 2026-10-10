@@ -35,7 +35,7 @@ extension VTGGraphicsScene {
         case "hitClear":
             clearHitRegion(command)
         case "clear":
-            clear()
+            clearDrawing()
         case "delete":
             if let id = command.parameters["id"] {
                 remove(id: id)

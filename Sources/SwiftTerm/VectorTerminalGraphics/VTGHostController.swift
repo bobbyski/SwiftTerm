@@ -25,6 +25,8 @@ public final class VTGHostController {
 
     public internal(set) var sendsResizeEvents = false
     public internal(set) var sendsMouseEvents = false
+    /// Whether refused sprite commands are answered with `commandRejected`.
+    public internal(set) var sendsErrorEvents = false
     public internal(set) var mouseMode: VTGMouseMode = .click
     public internal(set) var graphicsLayersVisible = true
     /// The host's own choice of `graphicsLayersVisible`, kept while a program
@@ -117,6 +119,7 @@ public final class VTGHostController {
         lastReportedCanvas = nil
         sendsResizeEvents = false
         sendsMouseEvents = false
+        sendsErrorEvents = false
         mouseMode = .click
         // A new guest program starts with the retained scene, whatever the last
         // one asked for.
@@ -202,6 +205,7 @@ public final class VTGHostController {
             activeScene.apply(isRasterMode ? rasterized(command) : command)
         }
         responses.append(contentsOf: flushPageBatchEvents(canvas: canvas))
+        responses.append(contentsOf: takeRejections())
         // Commands still applied above: a program on its way out clears its
         // graphics, and that has to land. Only the talking back stops.
         return isMuted ? [] : responses

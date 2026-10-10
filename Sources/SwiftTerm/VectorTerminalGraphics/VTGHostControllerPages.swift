@@ -511,10 +511,11 @@ extension VTGHostController {
 
         switch command.name {
         case "clear":
-            // Everything the page owns; borrowed layers belong to their owner.
-            page.assets.clear()
+            // Everything the page's own layers show; borrowed layers belong to
+            // their owner. The page's uploaded sprite assets stay, as they do
+            // for the main scene's `clear`.
             for layer in page.layers where !layer.isReadOnly {
-                layer.scene.clear()
+                clearContent(of: layer, in: page)
             }
             return []
         case "delete":

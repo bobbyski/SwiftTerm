@@ -35,6 +35,10 @@ public final class VTGGraphicsScene {
     var indexesByID: [String: Int] = [:]
     var nextHitOrder = 0
     let spriteAssetLimit = 256
+    /// Sprite commands refused since the host last looked, and why. The host
+    /// reports them as `commandRejected` to a program that asked
+    /// (`errorEvents`), and empties this either way.
+    var refusals: [VTGRefusal] = []
 
     /// Primitives ordered by their current compositing layer.
     ///
@@ -144,12 +148,17 @@ public final class VTGGraphicsScene {
         indexesByID = Dictionary(uniqueKeysWithValues: primitives.enumerated().map { ($0.element.id, $0.offset) })
     }
 
+    /// A sprite, asset or hit-region name: ASCII letters, digits, `-` and `_`,
+    /// at most 64 characters. The same rule as VectorTerminalSDK's, so a name
+    /// the SDK sends is one the terminal takes — `player_ship` was refused here
+    /// and dropped without a word. Neither `-` nor `_` means anything in the
+    /// `key=value,…` syntax.
     static func isValidIdentifier(_ value: String) -> Bool {
         guard value.isEmpty == false, value.count <= 64 else {
             return false
         }
         return value.allSatisfy { character in
-            character.isASCII && (character.isLetter || character.isNumber)
+            character.isASCII && (character.isLetter || character.isNumber || character == "-" || character == "_")
         }
     }
 }

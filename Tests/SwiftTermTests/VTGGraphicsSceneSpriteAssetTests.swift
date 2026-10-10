@@ -8,7 +8,7 @@ final class VTGGraphicsSceneSpriteAssetTests {
         let scene = VTGGraphicsScene()
         let payload = Data([1]).base64EncodedString()
 
-        scene.apply(command("spriteUpload", ["id": "bad-id", "format": "png", "width": "1", "height": "1"], payload: payload))
+        scene.apply(command("spriteUpload", ["id": "bad.id", "format": "png", "width": "1", "height": "1"], payload: payload))
         scene.apply(command("spriteUpload", ["id": "bad id", "format": "png", "width": "1", "height": "1"], payload: payload))
         scene.apply(command("spriteUpload", ["id": String(repeating: "a", count: 65), "format": "png", "width": "1", "height": "1"], payload: payload))
         #expect(scene.spriteAssets.isEmpty)
@@ -23,10 +23,26 @@ final class VTGGraphicsSceneSpriteAssetTests {
         #expect(scene.spriteAsset(id: "s256") == nil)
     }
 
+    @Test("Names with - and _ are taken, as the SDK sends them")
+    func dashAndUnderscoreNames() {
+        let scene = VTGGraphicsScene()
+        let payload = Data([1]).base64EncodedString()
+
+        scene.apply(command("spriteUpload", ["id": "player_ship", "format": "png", "width": "1", "height": "1"], payload: payload))
+        scene.apply(command("spriteDataUpload", ["id": "bg-1", "width": "1", "height": "1", "palette": "#000000"], payload: "0"))
+        scene.apply(command("sprite", ["id": "player_1", "image": "player_ship", "x": "1", "y": "1"]))
+        scene.apply(command("hit", ["id": "fire-button", "x": "0", "y": "0", "w": "4", "h": "4"]))
+
+        #expect(scene.spriteAsset(id: "player_ship") != nil)
+        #expect(scene.indexedSpriteAsset(id: "bg-1") != nil)
+        #expect(scene.primitive(id: "player_1") != nil)
+        #expect(scene.hitRegions["fire-button"] != nil)
+    }
+
     @Test func indexedSpriteUploadValidatesPayloadAndPalette() {
         let scene = VTGGraphicsScene()
 
-        scene.apply(command("spriteDataUpload", ["id": "bad-id", "width": "2", "height": "2", "palette": "#000000|#5eead4"], payload: "0,1,1,0"))
+        scene.apply(command("spriteDataUpload", ["id": "bad.id", "width": "2", "height": "2", "palette": "#000000|#5eead4"], payload: "0,1,1,0"))
         scene.apply(command("spriteDataUpload", ["id": "short", "width": "2", "height": "2", "palette": "#000000|#5eead4"], payload: "0,1,1"))
         scene.apply(command("spriteDataUpload", ["id": "palette", "width": "2", "height": "2", "palette": "#nothex"], payload: "0,0,0,0"))
         scene.apply(command("spriteDataUpload", ["id": "range", "width": "2", "height": "2", "palette": "#000000|#5eead4"], payload: "0,1,2,0"))

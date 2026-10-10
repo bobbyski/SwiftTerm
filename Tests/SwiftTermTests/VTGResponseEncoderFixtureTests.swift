@@ -32,6 +32,8 @@ final class VTGResponseEncoderFixtureTests {
             return "resizeEvents,enabled=true"
         case "mouseEvents":
             return "mouseEvents,enabled=true,mode=raw"
+        case "errorEvents":
+            return "errorEvents,enabled=1"
         case "defaultLayer":
             return "defaultLayer,layer=1"
         case "layer":

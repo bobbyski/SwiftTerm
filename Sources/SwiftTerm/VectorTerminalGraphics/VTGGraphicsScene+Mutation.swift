@@ -2,6 +2,18 @@ import Foundation
 
 /// Retained primitive and scene-wide state mutation helpers for ``VTGGraphicsScene``.
 extension VTGGraphicsScene {
+    /// The `clear` command: everything drawn goes, and uploaded sprite assets
+    /// stay. A program that clears the screen each frame and places its
+    /// sprites again would otherwise find nothing to place — `spriteRemove`
+    /// and `spriteClear` are how a program deletes pictures on purpose.
+    func clearDrawing() {
+        let assets = (spriteAssets, vectorSpriteAssets, indexedSpriteAssets)
+        clear()
+        (spriteAssets, vectorSpriteAssets, indexedSpriteAssets) = assets
+    }
+
+    /// Everything, uploaded sprite assets included: for a new program taking
+    /// the terminal, which starts with nothing of the last one's.
     func clear() {
         primitives.removeAll()
         spriteAssets.removeAll()

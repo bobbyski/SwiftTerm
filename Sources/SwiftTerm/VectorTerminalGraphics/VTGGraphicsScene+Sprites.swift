@@ -3,10 +3,13 @@ import Foundation
 /// Retained sprite instance helpers for the VTG scene.
 extension VTGGraphicsScene {
     func parseSprite(_ command: VectorTerminalGraphicsCommand) -> VTGPrimitive? {
-        guard let id = command.parameters["id"],
-              Self.isValidIdentifier(id),
-              let assetID = command.parameters["image"] ?? command.parameters["asset"],
+        guard let id = command.parameters["id"], Self.isValidIdentifier(id) else {
+            refuse(command, "badId")
+            return nil
+        }
+        guard let assetID = command.parameters["image"] ?? command.parameters["asset"],
               hasUploadedSpriteAsset(id: assetID) else {
+            refuse(command, "unknownAsset")
             return nil
         }
         return .sprite(

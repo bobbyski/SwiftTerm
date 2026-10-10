@@ -76,6 +76,9 @@ extension VTGHostController {
             }
             lastReportedCanvas = nil
             return []
+        case "errorEvents":
+            sendsErrorEvents = parseEnabled(command.parameters)
+            return []
         case "mouseEvents":
             sendsMouseEvents = parseEnabled(command.parameters)
             mouseMode = VTGMouseMode(rawValue: command.parameters["mode"] ?? "raw") ?? .raw

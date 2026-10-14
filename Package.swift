@@ -19,6 +19,10 @@ let isGitHubActions = getenv("GITHUB_ACTIONS").map { String(cString: $0) } == "t
 // with the Linux SDK, and the Metal shader is Apple's. Unset, nothing changes.
 // (Local change.)
 let libraryOnly = getenv("ACTIVEUI_CROSS") != nil || getenv("SWIFTTERM_LIBRARY_ONLY") != nil
+// Embedders may compile the copied shader with their application packaging step
+// to avoid Swift Build's Metal-only resource-bundle signing graph warning.
+// MetalTerminalRenderer already loads a packaged default.metallib first.
+let copyShaderSource = getenv("SWIFTTERM_COPY_SHADER_SOURCE") != nil
 let disableBenchmark = true
 let benchmarkDependencies: [Package.Dependency] = (isGitHubActions || disableBenchmark) ? [] : [
     .package(url: "https://github.com/ordo-one/package-benchmark", .upToNextMajor(from: "1.29.11"))
@@ -96,7 +100,7 @@ let swiftTermTarget: Target = .target(
         // VTG files live under Sources/SwiftTerm/VectorTerminalGraphics and are
         // discovered with the rest of the target sources.
         resources: libraryOnly ? [] : [
-            .process("Apple/Metal/Shaders.metal")
+            copyShaderSource ? .copy("Apple/Metal/Shaders.metal") : .process("Apple/Metal/Shaders.metal")
         ]
 //        swiftSettings: [
 //            .unsafeFlags(["-enforce-exclusivity=none"])

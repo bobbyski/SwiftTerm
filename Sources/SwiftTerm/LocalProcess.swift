@@ -97,7 +97,9 @@ public class LocalProcess {
     /// Zero means EOF; a nonzero value is the read error. Process exit is separate.
     public var onOutputClosed: ((Int32) -> Void)?
     private var outputClosed = false // Confined to readQueue.
-    private var pendingChunks: [OutputEvent] = []
+    private var pendingChunks: [(UInt64, OutputEvent)] = []
+    private var sessionGeneration: UInt64 = 0
+    private let sessionLock = NSLock()
     private var pendingChunkIndex: Int = 0
     private var pendingScheduled = false
     private let pendingLock = NSLock()
@@ -125,9 +127,15 @@ public class LocalProcess {
         self.usesMainQueue = self.dispatchQueue === DispatchQueue.main
     }
 
-    private func enqueueReceivedData(_ event: OutputEvent) {
+    // Scope PTY reads, deferred delivery and exit callbacks to their child.
+    private func currentGeneration() -> UInt64 {
+        sessionLock.lock(); defer { sessionLock.unlock() }
+        return sessionGeneration
+    }
+
+    private func enqueueReceivedData(_ event: OutputEvent, generation: UInt64) {
         pendingLock.lock()
-        pendingChunks.append(event)
+        pendingChunks.append((generation, event))
         let shouldSchedule = !pendingScheduled
         if shouldSchedule {
             pendingScheduled = true
@@ -143,7 +151,7 @@ public class LocalProcess {
     private func drainReceivedData() {
         let start = DispatchTime.now().uptimeNanoseconds
         while true {
-            var chunk: OutputEvent?
+            var chunk: (UInt64, OutputEvent)?
             pendingLock.lock()
             if pendingChunkIndex < pendingChunks.count {
                 chunk = pendingChunks[pendingChunkIndex]
@@ -161,10 +169,14 @@ public class LocalProcess {
             }
             pendingLock.unlock()
 
-            if let chunk {
-                switch chunk {
+            if let (generation, event) = chunk, generation == currentGeneration() {
+                switch event {
                 case .bytes(let bytes): delegate?.dataReceived(slice: bytes[...])
-                case .closed(let error): onOutputClosed?(error)
+                case .closed(let error):
+                    onOutputClosed?(error)
+#if os(macOS)
+                    processTerminated(pid: shellPid, generation: generation)
+#endif
                 }
             }
 
@@ -245,24 +257,33 @@ public class LocalProcess {
     }
 
     // Queue closure behind data, including batches deferred by the UI time slice.
-    private func receivedOutputClose(error: Int32) {
+    private func receivedOutputClose(error: Int32, generation: UInt64) {
         guard !outputClosed else { return }
         outputClosed = true
         if usesMainQueue {
-            enqueueReceivedData(.closed(error))
+            enqueueReceivedData(.closed(error), generation: generation)
         } else {
-            dispatchQueue.async { [weak self] in self?.onOutputClosed?(error) }
+            dispatchQueue.async { [weak self] in
+                guard let self, generation == self.currentGeneration() else { return }
+                self.onOutputClosed?(error)
+#if os(macOS)
+                self.processTerminated(pid: self.shellPid, generation: generation)
+#endif
+            }
         }
     }
 
     /* Total number of bytes read */
     var totalRead = 0
-    func childProcessRead (done: Bool, data: DispatchData?, errno: Int32) {
+    func childProcessRead (done: Bool, data: DispatchData?, errno: Int32, generation: UInt64) {
+        guard generation == currentGeneration() else { return }
         guard let data else {
-            if done { receivedOutputClose(error: errno); return }
+            if done { receivedOutputClose(error: errno, generation: generation); return }
             // Re-schedule the read on transient errors to keep the chain alive
             if !done, running {
-                io?.read(offset: 0, length: readSize, queue: readQueue, ioHandler: childProcessRead)
+                io?.read(offset: 0, length: readSize, queue: readQueue, ioHandler: { [weak self] done, data, error in
+                    self?.childProcessRead(done: done, data: data, errno: error, generation: generation)
+                })
             }
             return
         }
@@ -272,12 +293,17 @@ public class LocalProcess {
         }
         
         if data.count == 0 {
-            receivedOutputClose(error: errno)
+            receivedOutputClose(error: errno, generation: generation)
             childfd = -1
             if running {
                 // Keep process monitor alive so the exit event can still deliver
                 // processTerminated to clients when PTY EOF arrives first.
+                // EOF does not prove process exit. Keep running until the
+                // captured child's exit monitor reaps it; callers must not
+                // start a replacement while old callbacks are still retiring.
+#if !os(macOS)
                 childStopped(cancelProcessMonitor: false)
+#endif
                 // delegate.processTerminated (self, exitCode: nil)
             }
             return
@@ -298,13 +324,15 @@ public class LocalProcess {
             }
         })
         if usesMainQueue {
-            enqueueReceivedData(.bytes(b))
+            enqueueReceivedData(.bytes(b), generation: generation)
         } else {
             dispatchQueue.sync {
                 self.delegate?.dataReceived(slice: b[...])
             }
         }
-        io?.read(offset: 0, length: readSize, queue: readQueue, ioHandler: childProcessRead)
+        io?.read(offset: 0, length: readSize, queue: readQueue, ioHandler: { [weak self] done, data, error in
+                    self?.childProcessRead(done: done, data: data, errno: error, generation: generation)
+                })
     }
 
 #if os(macOS)
@@ -318,17 +346,26 @@ public class LocalProcess {
 #endif
     }
 
-    func processTerminated ()
+    func processTerminated (pid: pid_t, generation: UInt64)
     {
+        guard running, pid > 0, generation == currentGeneration() else { return }
         var status: Int32 = 0
         var result: pid_t
         repeat {
-            result = waitpid(shellPid, &status, WNOHANG)
+            result = waitpid(pid, &status, WNOHANG)
         } while result == -1 && errno == EINTR
         // A live child is not a successful exit. The process monitor will
         // report its termination; no completion should be fabricated here.
-        guard result != 0 else { return }
-        let code = result == shellPid ? LocalProcessExitStatus.decode(status) : nil
+        if result == 0 {
+            // PTY EOF may arrive before exit, and the process-source event can
+            // be missed. Retry a nonblocking reap without inventing an exit.
+            dispatchQueue.asyncAfter(deadline: .now() + .milliseconds(20)) { [weak self] in
+                self?.processTerminated(pid: pid, generation: generation)
+            }
+            return
+        }
+        guard generation == currentGeneration() else { return }
+        let code = result == pid ? LocalProcessExitStatus.decode(status) : nil
         childStopped()
         delegate?.processTerminated(self, exitCode: code)
     }
@@ -349,7 +386,10 @@ public class LocalProcess {
             return
         }
         
-        readQueue.sync { outputClosed = false }
+        readQueue.sync {
+            sessionLock.lock(); sessionGeneration &+= 1; sessionLock.unlock()
+            outputClosed = false
+        }
         #if false //canImport(Subprocess)
         startProcessWithSubprocess(executable: executable, args: args, environment: environment, execName: execName, currentDirectory: currentDirectory)
         #else
@@ -400,7 +440,9 @@ public class LocalProcess {
             }
             io.setLimit(lowWater: 1)
             io.setLimit(highWater: readSize)
-            io.read(offset: 0, length: readSize, queue: readQueue, ioHandler: childProcessRead)
+            io.read(offset: 0, length: readSize, queue: readQueue, ioHandler: { [weak self] done, data, error in
+                    self?.childProcessRead(done: done, data: data, errno: error, generation: generation)
+                })
             
             // Start subprocess with swift-subprocess asynchronously
             Task {
@@ -456,6 +498,7 @@ public class LocalProcess {
     #endif
     
     private func startProcessWithForkpty(executable: String, args: [String], environment: [String]?, execName: String?, currentDirectory: String?) {
+        let generation = currentGeneration()
         var size = delegate?.getWindowSize () ?? winsize()
     
         var shellArgs = args
@@ -473,20 +516,17 @@ public class LocalProcess {
         }
 
         if let (shellPid, childfd) = PseudoTerminalHelpers.fork(andExec: executable, args: shellArgs, env: env, currentDirectory: currentDirectory, desiredWindowSize: &size) {
-#if os(macOS)
-            childMonitor = DispatchSource.makeProcessSource(identifier: shellPid, eventMask: .exit, queue: dispatchQueue)
-            if let cm = childMonitor {
-                if #available(macOS 10.12, *) {
-                    cm.activate()
-                } else {
-                    // Fallback on earlier versions
-                }
-                cm.setEventHandler(handler: { [weak self] in self?.processTerminated () })
-            }
-#endif
             running = true
             self.childfd = childfd
             self.shellPid = shellPid
+#if os(macOS)
+            let monitor = DispatchSource.makeProcessSource(identifier: shellPid, eventMask: .exit, queue: dispatchQueue)
+            monitor.setEventHandler { [weak self] in
+                self?.processTerminated(pid: shellPid, generation: generation)
+            }
+            childMonitor = monitor
+            if #available(macOS 10.12, *) { monitor.activate() }
+#endif
             // Capture FD value for cleanup handler to close it safely after DispatchIO is done
             let fdToClose = childfd
             io = DispatchIO(type: .stream, fileDescriptor: childfd, queue: dispatchQueue, cleanupHandler: { _ in
@@ -499,7 +539,9 @@ public class LocalProcess {
             }
             io.setLimit(lowWater: 1)
             io.setLimit(highWater: readSize)
-            io.read(offset: 0, length: readSize, queue: readQueue, ioHandler: childProcessRead)
+            io.read(offset: 0, length: readSize, queue: readQueue, ioHandler: { [weak self] done, data, error in
+                    self?.childProcessRead(done: done, data: data, errno: error, generation: generation)
+                })
         }
     }
 

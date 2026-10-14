@@ -36,6 +36,27 @@ final class LocalProcessOutputClosureTests: XCTestCase, LocalProcessDelegate {
         process.terminate()
     }
 
+#if os(macOS)
+    func testPTYEOFReapsWithoutProcessMonitorAndWaitsForRealExit() {
+        let closure = expectation(description: "Early PTY closure")
+        let termination = expectation(description: "Actual delayed exit")
+        exitEvent = termination
+        let process = LocalProcess(delegate: self)
+        process.onOutputClosed = { _ in
+            // The shell is still alive after closing its terminal descriptors.
+            XCTAssertTrue(process.running)
+            closure.fulfill()
+        }
+        process.startProcess(executable: "/bin/sh", args: ["-c", "exec 0<&- 1>&- 2>&-; /bin/sleep 0.3; exit 7"])
+        // Exercise the EOF backstop independently of the kqueue exit event.
+        process.childMonitor?.cancel()
+        process.childMonitor = nil
+        wait(for: [closure, termination], timeout: 10)
+        XCTAssertFalse(process.running)
+        process.terminate()
+    }
+#endif
+
     func dataReceived(slice: ArraySlice<UInt8>) {
         XCTAssertFalse(closed, "Bytes arrived after output closure")
         received.append(contentsOf: slice)

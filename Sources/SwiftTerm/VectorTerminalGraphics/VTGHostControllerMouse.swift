@@ -12,7 +12,9 @@ extension VTGHostController {
         scrollY: Int? = nil
     ) -> String? {
         _ = expirePendingFrameIfNeeded()
-        guard sendsMouseEvents, acceptsMouseEvent(type: type) else {
+        // Not while muted: the terminal's own shell is in front, and a
+        // subscription a killed program left on would type into it.
+        guard sendsMouseEvents, !isMuted, acceptsMouseEvent(type: type) else {
             return nil
         }
         let point = VTGPoint(x: Double(snapshot.x), y: Double(snapshot.y))

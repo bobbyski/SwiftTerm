@@ -882,6 +882,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             caretView.disableAnimations()
             hasFocus = false
             terminal.setTerminalFocus(false)
+            releaseHeldKeys()
         }
         return response
     }
@@ -969,11 +970,21 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     // If true, the Command key has been pressed
     var commandActive = false
+
+    /// Told about each physical key going down, repeating and coming up,
+    /// before the view acts on it. `VectorTerminalView` reports these to a
+    /// program that asked (VTG `keyEvents`). Nil, the default, costs nothing.
+    public var keyTransitionObserver: ((VTGKeyTransition) -> Void)? {
+        didSet { watchFocusForHeldKeys() }
+    }
+    var heldKeys = VTGHeldKeys()
+    let keyFocusWatch = KeyFocusWatch()
     
     // We monitor the flags changed to enable URL previews on mouse-hover like iTerm
     // when the Command key is pressed.
     
     public override func flagsChanged(with event: NSEvent) {
+        reportModifierChange(event)
         if event.modifierFlags.contains(.command){
             commandActive = true
             startTracking()
@@ -1062,6 +1073,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     // of those keys.
     //
     public override func keyDown(with event: NSEvent) {
+        reportKeyDown(event)
         selection.active = false
 
         // Embedders get first refusal on every key, which is how user-defined
@@ -1208,6 +1220,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     }
 
     public override func keyUp(with event: NSEvent) {
+        reportKeyUp(event)
         let flags = terminal.keyboardEnhancementFlags
         if flags.contains(.reportEvents) {
             let hasAltOrCtrl = event.modifierFlags.contains(.control) || (optionAsMetaKey && event.modifierFlags.contains(.option))

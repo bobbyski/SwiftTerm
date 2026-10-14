@@ -224,6 +224,17 @@ public final class VTGHostSession {
         sceneDidChange(controller.scene)
     }
 
+    /// Send a VTG `key` message for a key going down, repeating, or coming up,
+    /// if the program asked for them.
+    @discardableResult
+    public func sendKeyEvent(_ transition: VTGKeyTransition) -> Bool {
+        guard processRunning(), let response = controller.keyResponse(transition) else {
+            return false
+        }
+        sendResponse(response)
+        return true
+    }
+
     /// Send a VTG mouse event if the current mouse mode accepts it.
     @discardableResult
     public func sendMouseEvent(

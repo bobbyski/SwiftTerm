@@ -2351,12 +2351,25 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             caretView?.updateView()
             keyRepeat?.invalidate()
             keyRepeat = nil
-            
+            keyRepeatCode = nil
+            releaseHeldKeys()
+
             terminalAccessory?.cancelTimer()
         }
         return code
     }
     var keyRepeat: Timer?
+    /// The key `keyRepeat` repeats, so another key's release leaves it going.
+    var keyRepeatCode: UIKeyboardHIDUsage?
+
+    /// Told about each hardware key going down and coming up, before the view
+    /// acts on it. `VectorTerminalView` reports these to a program that asked
+    /// (VTG `keyEvents`). Nil, the default, costs nothing.
+    public var keyTransitionObserver: ((VTGKeyTransition) -> Void)? {
+        didSet { watchFocusForHeldKeys() }
+    }
+    var heldKeys = VTGHeldKeys()
+    let keyFocusWatch = KeyFocusWatch()
 
     private struct PendingKittyKeyEvent {
         let key: UIKey
@@ -2383,6 +2396,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     }
 
     open override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        reportPressesBegan(presses)
         var didHandleEvent = false
         let wasCommandActive = commandActive
         let kittyFlags = terminal.keyboardEnhancementFlags
@@ -2453,6 +2467,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
                                 _ = self.sendKittyEvent(repeatEvent)
                             }
                             RunLoop.current.add(keyRepeat!, forMode: .default)
+                            keyRepeatCode = key.keyCode
                         }
                     }
                     continue
@@ -2476,6 +2491,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
                             _ = self.sendKittyEvent(repeatEvent)
                         }
                         RunLoop.current.add(keyRepeat!, forMode: .default)
+                        keyRepeatCode = key.keyCode
                         continue
                     }
                 }
@@ -2603,6 +2619,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
                     self.sendData(data: sendableData)
                 }
                 RunLoop.current.add(keyRepeat!, forMode: .default)
+                keyRepeatCode = key.keyCode
                 sendData (data: sendableData)
             }
         }
@@ -2623,9 +2640,17 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         }
     }
     
+    /// The system took the presses away — an alert, a gesture — so they will
+    /// not come up here: their repeat stops and they are released.
+    open override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        stopKeyRepeat(releasing: presses)
+        reportPressesEnded(presses)
+        super.pressesCancelled(presses, with: event)
+    }
+
     open override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        keyRepeat?.invalidate()
-        keyRepeat = nil
+        reportPressesEnded(presses)
+        stopKeyRepeat(releasing: presses)
         let wasCommandActive = commandActive
         for press in presses {
             guard let key = press.key else { continue }

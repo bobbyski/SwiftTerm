@@ -27,6 +27,14 @@ public final class VTGHostController {
     public internal(set) var sendsMouseEvents = false
     /// Whether refused sprite commands are answered with `commandRejected`.
     public internal(set) var sendsErrorEvents = false
+    /// Whether the embedding view reports physical keys (`keyEvents`). Set by
+    /// the view that does; without it the subscription is refused and not
+    /// advertised.
+    public var deliversKeyEvents = false
+    /// Whether the program asked for key down and up messages.
+    public internal(set) var sendsKeyEvents = false
+    /// Whether it also asked for auto-repeats (`repeat=1`).
+    var reportsKeyRepeats = false
     public internal(set) var mouseMode: VTGMouseMode = .click
     public internal(set) var graphicsLayersVisible = true
     /// The host's own choice of `graphicsLayersVisible`, kept while a program
@@ -120,6 +128,8 @@ public final class VTGHostController {
         sendsResizeEvents = false
         sendsMouseEvents = false
         sendsErrorEvents = false
+        sendsKeyEvents = false
+        reportsKeyRepeats = false
         mouseMode = .click
         // A new guest program starts with the retained scene, whatever the last
         // one asked for.

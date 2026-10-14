@@ -30,7 +30,12 @@ extension VTGHostController {
     ) -> [String] {
         switch command.name {
         case "capabilities?":
-            return [VTGResponseEncoder.capabilities(canvas: screenCanvas(for: canvas), renderer: renderer)]
+            return [VTGResponseEncoder.capabilities(
+                canvas: screenCanvas(for: canvas),
+                renderer: renderer,
+                commands: advertisedCommands,
+                events: advertisedEvents
+            )]
         case "canvas?":
             return [VTGResponseEncoder.canvasResponse(commandName: "canvas", canvas: reportedCanvas(for: canvas))]
         case "size?":
@@ -79,6 +84,8 @@ extension VTGHostController {
         case "errorEvents":
             sendsErrorEvents = parseEnabled(command.parameters)
             return []
+        case "keyEvents":
+            return keyEventsResponses(command, enabled: parseEnabled(command.parameters))
         case "mouseEvents":
             sendsMouseEvents = parseEnabled(command.parameters)
             mouseMode = VTGMouseMode(rawValue: command.parameters["mode"] ?? "raw") ?? .raw

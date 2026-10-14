@@ -433,6 +433,14 @@ open class VectorTerminalView: TerminalView {
             self?.onGraphicsLayersVisibleChange?(isVisible)
         }
 
+        // Physical keys going down and up, for a program that subscribes to
+        // `keyEvents` (VGT-11). This view delivers them, so the host may
+        // advertise them.
+        vtgSession.controller.deliversKeyEvents = true
+        keyTransitionObserver = { [weak self] transition in
+            self?.vtgSession.sendKeyEvent(transition)
+        }
+
         terminal.registerPrivateSequenceHandler { [weak self] sequence in
             self?.vtgSession.handlePrivateSequence(sequence) ?? false
         }

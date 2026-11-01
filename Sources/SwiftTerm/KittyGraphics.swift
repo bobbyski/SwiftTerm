@@ -5,8 +5,12 @@
 //
 
 import Foundation
-#if os(Linux)
+// Local divergence from upstream (ActiveUI, 2026-11-01): static Linux is musl, which
+// has no Glibc module, so the static terminal Catalog did not build.
+#if canImport(Glibc)
 import Glibc
+#elseif canImport(Musl)
+import Musl
 #elseif os(Windows)
 import WinSDK
 #else

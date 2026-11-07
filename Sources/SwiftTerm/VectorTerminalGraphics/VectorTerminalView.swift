@@ -67,6 +67,7 @@ open class VectorTerminalView: TerminalView {
     /// Clears retained graphics and protocol subscriptions for a guest reboot.
     public func resetVectorGraphicsSession() {
         vtgSession.resetSession()
+        vtgWindows.reset()
     }
 
     /// Stops answering VTG commands, and drops any frame left open.
@@ -129,6 +130,22 @@ open class VectorTerminalView: TerminalView {
 
     private var vtgHostIsActive = true
 
+    /// Builds the text mask for layers that asked for `layerOcclude,by=ink`.
+    let vtgTextMaskBuilder = VTGTextOcclusionMaskBuilder()
+
+    /// The raster framebuffer for `rasterMode,…,text=erases`.
+    let vtgRasterBitmap = VTGRasterBitmap()
+
+    /// Set on a VTG window's own view while another window has focus: the
+    /// Metal renderer then draws no cursor (CoreGraphics hides its caret view).
+    var vtgCursorSuppressed = false
+
+    /// VTG windows (WINDOW_PLAN.md, experimental): small VTG programs with
+    /// their own text and graphics, stacked over this terminal. Bytes reach
+    /// it through ``feedVTG(_:)`` and, for a process view, the child's output;
+    /// until a program creates a window it hands every byte straight back.
+    public private(set) lazy var vtgWindows: VTGWindowManager = makeVTGWindowManager()
+
     private func applyVTGLinkDetectionSettings(_ settings: VTGLinkDetectionSettings) {
         linkReporting = settings.isEnabled ? .implicit : .none
         linkDecorationEnabled = settings.decoratesLinks
@@ -156,12 +173,12 @@ open class VectorTerminalView: TerminalView {
     /// byte feed. Host-fed applications should send VTG through the same parser
     /// path as process-backed applications so the wire protocol stays honest.
     public func feedVTG(_ data: Data) {
-        feed(byteArray: Array(data)[...])
+        feedRoutingVTGWindows(Array(data)[...])
     }
 
     /// Feed VTG bytes from an in-process SDK transport.
     public func feedVTG(_ bytes: [UInt8]) {
-        feed(byteArray: bytes[...])
+        feedRoutingVTGWindows(bytes[...])
     }
 
     /// Renderer name advertised through `VTG;capabilities?`.
@@ -395,13 +412,16 @@ open class VectorTerminalView: TerminalView {
         guard areGraphicsLayersVisible else {
             return
         }
+        refreshVTGOverlayTextMask()
         let scene = vtgSession.visibleSceneSnapshot
         guard !scene.textPlanePrimitives.isEmpty else {
             return
         }
+        let textMask = currentVTGTextMask(for: scene, inLockedCanvas: true)
         // Layer 0 draws in the same locked pixels the overlay does.
         vtgOverlayView.drawLocked(in: context, bounds: bounds) { canvasBounds in
-            vtgOverlayView.draw(scene: scene, plane: .textPlane, in: context, bounds: canvasBounds)
+            vtgOverlayView.draw(scene: scene, plane: .textPlane, in: context, bounds: canvasBounds,
+                                textMask: textMask)
         }
     }
 
@@ -457,7 +477,13 @@ open class VectorTerminalView: TerminalView {
         terminal.fullResetObserver = { [weak self] in
             self?.vtgSession.endPageMode(reason: "reset")
             self?.vtgSession.restoreHostGraphicsLayersVisible()
+            // A reset returns output to the root and closes every window.
+            self?.vtgWindows.reset()
         }
+        #if os(macOS)
+        vtgSession.controller.advertisesWindows = true
+        #endif
+        setupVTGRasterText()
         vtgOverlayView.isHidden = !areGraphicsLayersVisible
     }
 }

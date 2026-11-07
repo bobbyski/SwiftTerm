@@ -254,6 +254,10 @@ public final class Buffer {
     private var insertMode: Bool = false
     private var marginMode: Bool = false
     private var wraparound: Bool = false
+    /// Where prints are reported, for VTG raster text (`TerminalCellWriteObserver`).
+    /// Set by the terminal; nil unless a program asked for it.
+    weak var cellWriteObserver: TerminalCellWriteObserver?
+
     var scroll: (_ isWrapped: Bool)->() = { x in
         fatalError("This should be set after creating a buffer")
     }
@@ -1156,6 +1160,7 @@ public final class Buffer {
             for i in 0..<runLen {
                 row[_x + i] = CharData(attribute: attribute, code: Int32(bytes[idx + i]), size: 1)
             }
+            cellWriteObserver?.cellsWritten(row: _y, columns: _x..<(_x + runLen))
             _x += runLen
             consumed += runLen
             idx += runLen
@@ -1222,8 +1227,14 @@ public final class Buffer {
         if _x >= _cols {
             _x = _cols-1
         }
+        let writtenFrom = _x
         bufferRow[_x] = charData
         _x += 1
+        defer {
+            // Insert mode shifted everything to the right margin as well.
+            let writtenTo = insertMode ? max(_x, right + 1) : _x
+            cellWriteObserver?.cellsWritten(row: _y, columns: writtenFrom..<min(_cols, writtenTo))
+        }
 
         // fullwidth char - also set next cell to placeholder stub and advance cursor
         // for graphemes bigger than fullwidth we can simply loop to zero

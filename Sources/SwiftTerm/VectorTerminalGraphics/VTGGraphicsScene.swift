@@ -25,6 +25,9 @@ public final class VTGGraphicsScene {
     public internal(set) var layerAlphas: [Int: Double] = [:] { didSet { revision &+= 1 } }
     public internal(set) var viewportModes: [Int: VTGViewportMode] = [:] { didSet { revision &+= 1 } }
     public internal(set) var viewportScales: [Int: VTGViewportScale] = [:] { didSet { revision &+= 1 } }
+    /// Layers that terminal text may hide (`layerOcclude`), by layer number.
+    /// A layer missing here is `.none`, which is how VTG has always drawn.
+    public internal(set) var layerOcclusions: [Int: VTGLayerOcclusion] = [:] { didSet { revision &+= 1 } }
     public internal(set) var hitRegions: [String: VTGHitRegion] = [:]
     /// Named text styles. Shared by reference with snapshots and page layers,
     /// and deliberately left alone by `clear`: styles are session state.
@@ -123,6 +126,7 @@ public final class VTGGraphicsScene {
         layerAlphas = scene.layerAlphas
         viewportModes = scene.viewportModes
         viewportScales = scene.viewportScales
+        layerOcclusions = scene.layerOcclusions
         hitRegions = scene.hitRegions
         nextHitOrder = scene.nextHitOrder
         textStyles = scene.textStyles

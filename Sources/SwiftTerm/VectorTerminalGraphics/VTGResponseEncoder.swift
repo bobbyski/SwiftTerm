@@ -20,7 +20,9 @@ public enum VTGResponseEncoder {
         planned: [String] = plannedCommands,
         events: [String] = defaultEvents,
         pageFeatures: [String] = defaultPageFeatures,
-        textFeatures: [String] = defaultTextFeatures
+        textFeatures: [String] = defaultTextFeatures,
+        occlusionFeatures: [String] = defaultOcclusionFeatures,
+        extraFields: [(String, String)] = []
     ) -> String {
         var fields: [(String, String)] = [
             ("protocol", protocolName),
@@ -55,6 +57,14 @@ public enum VTGResponseEncoder {
         if !textFeatures.isEmpty {
             fields.append(("text", textFeatures.joined(separator: "|")))
         }
+        // WINDOW_PLAN.md: new features are new fields, after everything above,
+        // and only ever added to — never a change to an existing field.
+        if !occlusionFeatures.isEmpty {
+            fields.append(("occlusion", occlusionFeatures.joined(separator: "|")))
+        }
+        // Fields only some hosts can promise: windows, raster text (see
+        // `VTGHostController.advertisesWindows` and `advertisesRasterText`).
+        fields.append(contentsOf: extraFields)
         return apc("capabilities", fields)
     }
 

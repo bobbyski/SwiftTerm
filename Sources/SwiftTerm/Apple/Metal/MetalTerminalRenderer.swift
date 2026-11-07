@@ -532,6 +532,7 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         }
 
         encoder.endEncoding()
+        captureFrameIfRequested(drawable.texture, commandBuffer: commandBuffer)
 #if canImport(os)
         if MetalTerminalRenderer.profileEnabled {
             os_signpost(.end, log: MetalTerminalRenderer.profileLog, name: "Metal.Encode", signpostID: encodeID)
@@ -551,6 +552,32 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
 #endif
     }
 
+
+    /// Test seam (WINDOW_PLAN.md): set to receive the next frame's pixels,
+    /// BGRA rows from the top, once the GPU has drawn it. Nil in normal use,
+    /// which costs one nil check per frame.
+    var captureNextFrame: ((_ bytes: [UInt8], _ width: Int, _ height: Int) -> Void)?
+
+    private func captureFrameIfRequested(_ texture: MTLTexture, commandBuffer: MTLCommandBuffer) {
+        guard let handler = captureNextFrame else {
+            return
+        }
+        captureNextFrame = nil
+        let width = texture.width, height = texture.height, bytesPerRow = width * 4
+        guard let buffer = device.makeBuffer(length: bytesPerRow * height, options: .storageModeShared),
+              let blit = commandBuffer.makeBlitCommandEncoder() else {
+            return
+        }
+        blit.copy(from: texture, sourceSlice: 0, sourceLevel: 0,
+                  sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0), sourceSize: MTLSize(width: width, height: height, depth: 1),
+                  to: buffer, destinationOffset: 0, destinationBytesPerRow: bytesPerRow, destinationBytesPerImage: bytesPerRow * height)
+        blit.endEncoding()
+        commandBuffer.addCompletedHandler { _ in
+            let bytes = [UInt8](UnsafeBufferPointer(start: buffer.contents().assumingMemoryBound(to: UInt8.self),
+                                                    count: bytesPerRow * height))
+            handler(bytes, width, height)
+        }
+    }
 
     private func markPendingRedraw() {
         redrawLock.lock()
@@ -1951,6 +1978,9 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         guard terminalView.areGraphicsLayersVisible else {
             return
         }
+        // The overlay (layers 1…4) is CoreGraphics even here; keep its text
+        // mask current with the text this frame draws.
+        terminalView.refreshVTGOverlayTextMask()
         let scene = terminalView.vtgSession.visibleSceneSnapshot
         let plan = scene.renderPlan(
             plane: plane,
@@ -1962,7 +1992,8 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         let batches = VTGMetalPrimitiveRenderer.makeBatches(
             plan: plan,
             scale: scale,
-            drawableHeight: CGFloat(viewport.y)
+            drawableHeight: CGFloat(viewport.y),
+            textMask: terminalView.currentVTGTextMask(for: scene, inLockedCanvas: false)
         )
         guard batches.isEmpty == false else {
             return
@@ -2155,6 +2186,10 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         }
         let buffer = terminalView.terminal.displayBuffer
         if terminalView.terminal.cursorHidden {
+            return ([], [], [])
+        }
+        // A VTG window without focus shows no cursor (WINDOW_PLAN.md 4.6).
+        if (terminalView as? VectorTerminalView)?.vtgCursorSuppressed == true {
             return ([], [], [])
         }
         let cursorRow = buffer.yBase + buffer.y

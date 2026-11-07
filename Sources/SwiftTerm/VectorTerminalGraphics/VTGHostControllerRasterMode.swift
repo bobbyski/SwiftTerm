@@ -36,16 +36,54 @@ extension VTGHostController {
     /// Cleared because the two models cannot both be addressed: objects drawn
     /// before the switch would stay on screen under ids the guest can no longer
     /// use, and raster pixels would outlive the mode that explains them.
-    func setRasterMode(_ enabled: Bool) {
-        guard enabled != isRasterMode else {
+    ///
+    /// - Parameter textErases: `rasterMode,enabled=1,text=erases`: draw into
+    ///   `rasterCanvas`, a framebuffer the text overwrites, instead of onto
+    ///   layer 0. Plain raster mode is unchanged (WINDOW_PLAN.md rule 3).
+    func setRasterMode(_ enabled: Bool, textErases: Bool = false) {
+        let erasing = enabled && textErases
+        guard enabled != isRasterMode || erasing != isRasterTextErasing else {
             return
         }
         isRasterMode = enabled
+        let wasErasing = isRasterTextErasing
+        isRasterTextErasing = erasing
         rasterObjectCount = 0
         // Uploaded sprite assets stay: raster mode draws sprites too, and it
         // is the drawing's ids, not the pictures, that cannot carry across.
         scene.clearDrawing()
         pendingFrame = nil
+        if erasing || wasErasing {
+            rasterCanvas.clear()
+            rasterTextModeDidChange?(erasing ? rasterCanvas : nil)
+        }
+    }
+
+    /// With `text=erases`, send a drawing command to the raster canvas instead
+    /// of the scene. Returns whether the command was taken.
+    ///
+    /// The command is parsed by the scene that would have kept it — so sprite
+    /// assets, text styles and refusals work exactly as before — and the
+    /// primitive is then taken back out, so nothing is retained.
+    func drawIntoRasterCanvas(_ command: VectorTerminalGraphicsCommand) -> Bool {
+        if command.name == "clear" {
+            // A screen clear erases the framebuffer too; the scene still
+            // handles the rest of `clear`.
+            rasterCanvas.clear()
+            return false
+        }
+        guard Self.rasterDrawingCommands.contains(command.name) else {
+            return false
+        }
+        let rewritten = rasterized(command)
+        let scene = activeScene
+        scene.apply(rewritten)
+        if let id = rewritten.parameters["id"], let index = scene.indexesByID[id] {
+            let primitive = scene.primitives[index]
+            scene.remove(id: id)
+            rasterCanvas.draw(primitive)
+        }
+        return true
     }
 
     /// The command as the scene should see it while raster mode is on.

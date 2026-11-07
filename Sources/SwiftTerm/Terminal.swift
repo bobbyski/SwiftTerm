@@ -335,6 +335,15 @@ open class Terminal {
     
     // The current buffers
     var normalBuffer, altBuffer: Buffer
+
+    /// Told where text is written, for VTG raster mode with `text=erases`
+    /// (WINDOW_PLAN.md Phase 5). Nil unless a program asked for it.
+    public weak var cellWriteObserver: TerminalCellWriteObserver? {
+        didSet {
+            normalBuffer.cellWriteObserver = cellWriteObserver
+            altBuffer.cellWriteObserver = cellWriteObserver
+        }
+    }
     /**
      * Returns the active buffer (either the normal buffer or the alternative buffer)
      */
@@ -853,6 +862,7 @@ open class Terminal {
             altBuffer.clear ()
         }
         buffer = normalBuffer
+        cellWriteObserver?.screenInvalidated()
     }
     
     private func activateAltBuffer(fillAttr: Attribute?) {
@@ -868,6 +878,7 @@ open class Terminal {
         altBuffer.fillViewportRows(attribute: fillAttr)
         buffer = altBuffer
         clearKittyImages(in: altBuffer, isAlternateBuffer: true)
+        cellWriteObserver?.screenInvalidated()
     }
     
     func setupTabStops (index: Int = -1)
@@ -2203,6 +2214,7 @@ open class Terminal {
         let buffer = self.buffer
         
         buffer.lines [buffer.y + buffer.yBase].insertCells (pos: buffer.x, n: pars.count > 0 ? max (pars [0], 1) : 1, rightMargin: marginMode ? buffer.marginRight : cols-1, fillData: cd)
+        cellWriteObserver?.cellsWritten(row: buffer.y, columns: buffer.x..<((marginMode ? buffer.marginRight : cols - 1) + 1))
 
         updateRange (buffer.y)
     }
@@ -2528,6 +2540,24 @@ open class Terminal {
     // - Parameter start: first cell index to be erased
     // - Parameter end:   end - 1 is last erased cell
     //
+    /// Report rows moving to `cellWriteObserver`: a scroll when the region
+    /// spans the full width, or — inside narrow left/right margins, where only
+    /// part of each row moves — the margin rectangle as written.
+    func reportLinesMoved(top: Int, bottom: Int, count: Int) {
+        guard let cellWriteObserver, bottom >= top, count != 0 else {
+            return
+        }
+        let narrow = marginMode && (buffer.marginLeft > 0 || buffer.marginRight < cols - 1)
+        if narrow {
+            for row in top...bottom {
+                cellWriteObserver.cellsWritten(row: row, columns: buffer.marginLeft..<(buffer.marginRight + 1))
+            }
+        } else {
+            let height = bottom - top + 1
+            cellWriteObserver.rowsScrolled(top: top, bottom: bottom, count: max(-height, min(height, count)))
+        }
+    }
+
     func eraseInBufferLine (y: Int, start: Int, end: Int, clearWrap: Bool = false, clearRenderMode: Bool = false, clearImages: Bool = false)
     {
         let line = buffer.lines [buffer.yBase + y]
@@ -2536,6 +2566,9 @@ open class Terminal {
         }
         let cd = CharData (attribute: eraseAttr ())
         line.replaceCells (start: start, end: end, fillData: cd)
+        if let cellWriteObserver, end > start {
+            cellWriteObserver.cellsWritten(row: y, columns: max(0, start)..<min(cols, end))
+        }
         if clearWrap {
             line.isWrapped = false
         }
@@ -2561,6 +2594,7 @@ open class Terminal {
         
         let scrollBottomRowsOffset = rows - 1 - buffer.scrollBottom
         let scrollBottomAbsolute = rows - 1 + buffer.yBase - scrollBottomRowsOffset + 1
+        reportLinesMoved(top: buffer.y, bottom: buffer.scrollBottom, count: -p)
         
         let ea = eraseAttr ()
         if marginMode {
@@ -2698,6 +2732,7 @@ open class Terminal {
         }
         updateFullScreen()
         setCursor(col: 0, row: 0)
+        cellWriteObserver?.screenInvalidated()
     }
 
     func cmdRestoreCursor (_ pars: [Int], _ collect: cstring)
@@ -4796,6 +4831,7 @@ open class Terminal {
             start: buffer.x,
             end: buffer.x + p,
             fillData: CharData (attribute:  eraseAttr ()))
+        cellWriteObserver?.cellsWritten(row: buffer.y, columns: buffer.x..<min(cols, buffer.x + p))
     }
 
     func csiT (_ pars: [Int], _ collect: cstring)
@@ -4813,6 +4849,7 @@ open class Terminal {
     {
         let p = min (max (pars.count == 0 ? 1 : pars [0], 1), rows)
         let da = CharData.defaultAttr
+        reportLinesMoved(top: buffer.scrollTop, bottom: buffer.scrollBottom, count: -p)
 
         if marginMode {
             let row = buffer.scrollTop + buffer.yBase
@@ -4849,6 +4886,7 @@ open class Terminal {
     {
         let p = min (rows*2, max (pars.count == 0 ? 1 : pars [0], 1))
         let da = CharData.defaultAttr
+        reportLinesMoved(top: buffer.scrollTop, bottom: buffer.scrollBottom, count: p)
 
         if marginMode {
             let row = buffer.scrollTop + buffer.yBase
@@ -4901,6 +4939,7 @@ open class Terminal {
         }
         buffer.lines [buffer.y + buffer.yBase].deleteCells (
             pos: buffer.x, n: p, rightMargin: marginMode ? buffer.marginRight : cols-1, fillData: CharData (attribute: eraseAttr ()))
+        cellWriteObserver?.cellsWritten(row: buffer.y, columns: buffer.x..<((marginMode ? buffer.marginRight : cols - 1) + 1))
         
         updateRange (buffer.y)
     }
@@ -4919,6 +4958,9 @@ open class Terminal {
         let row = buffer.y + buffer.yBase
         var j = rows - 1 - buffer.scrollBottom
         j = rows - 1 + buffer.yBase - j
+        if buffer.y >= buffer.scrollTop && buffer.y <= buffer.scrollBottom {
+            reportLinesMoved(top: buffer.y, bottom: buffer.scrollBottom, count: p)
+        }
         let ea = eraseAttr ()
         
         if marginMode {
@@ -5374,6 +5416,7 @@ open class Terminal {
         // within the margin columns only. This path is unconditional when narrow margins are
         // active, regardless of cursor position, to ensure consistent behavior.
         let hasNarrowMargins = marginMode && (bMarginLeft > 0 || bMarginRight < cols - 1)
+        reportLinesMoved(top: scrollTop, bottom: scrollBottom, count: 1)
         if hasNarrowMargins {
             let scrollRegionHeight = bottomRow - topRow + 1
             let columnCount = bMarginRight - bMarginLeft + 1
@@ -5538,6 +5581,7 @@ open class Terminal {
     {
             parser.reset ()
             resetToInitialState ()
+            cellWriteObserver?.screenInvalidated()
             fullResetObserver? ()
     }
             
@@ -5590,6 +5634,7 @@ open class Terminal {
         if newCols == self.cols && newRows == self.rows {
             return
         }
+        cellWriteObserver?.screenInvalidated()
         endSynchronizedOutput ()
         let oldCols = self.cols
         resizeBuffers(newColumns: newCols, newRows: newRows)
@@ -5930,6 +5975,7 @@ open class Terminal {
                 }
 
                 let hasNarrowMargins = marginMode && (buffer.marginLeft > 0 || buffer.marginRight < cols - 1)
+                reportLinesMoved(top: buffer.scrollTop, bottom: buffer.scrollBottom, count: -1)
 
                 if hasNarrowMargins {
                     // Do in-place reverse scrolling within margin columns only

@@ -22,6 +22,8 @@ extension VTGGraphicsScene {
             setLayerTextAnchor(command)
         case "layerAlpha":
             setLayerAlpha(command)
+        case "layerOcclude":
+            setLayerOcclusion(command)
         case "viewportMode":
             setViewportMode(command)
         case "viewportScale":

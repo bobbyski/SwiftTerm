@@ -19,6 +19,10 @@ public final class VTGHostSession {
     /// Told when a program locks or unlocks the screen (`screenLock`), so the
     /// view can resize its grid and the host can re-centre it.
     public var screenLockDidChange: (VTGScreenLock?) -> Void = { _ in }
+    /// Told when a program starts raster mode with `text=erases` (the canvas
+    /// to drain, and to set as the terminal's `cellWriteObserver`) or ends it
+    /// (nil, so the terminal stops reporting writes).
+    public var rasterCanvasDidChange: (VTGRasterCanvas?) -> Void = { _ in }
     /// Told when a program shows or hides the graphics (`graphicsVisible`),
     /// or the host's choice comes back when it leaves — so a menu that shows
     /// the state can follow it. Not called for the host's own
@@ -43,6 +47,9 @@ public final class VTGHostSession {
         self.sendResponse = sendResponse
         self.sceneDidChange = sceneDidChange
         self.linkDetectionDidChange = linkDetectionDidChange
+        controller.rasterTextModeDidChange = { [weak self] canvas in
+            self?.rasterCanvasDidChange(canvas)
+        }
         controller.screenLockDidChange = { [weak self] lock in
             self?.screenLockDidChange(lock)
         }

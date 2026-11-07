@@ -169,4 +169,23 @@ public extension VTGResponseEncoder {
     /// Commands behind `text=`. The first four are scene primitives; the
     /// queries are answered by the host controller.
     static let richTextCommands = ["textStyle", "styledText", "attrText", "textBox", "textMeasure?", "fonts?"]
+
+    /// What can hide a graphics layer, advertised as `occlusion=`.
+    ///
+    /// `ink` means `layerOcclude,layer=<n>,by=ink` works: terminal cells that
+    /// hold ink hide that layer. Advertised in its own field, like `page=` and
+    /// `text=`, so the shared `commands` list keeps its exact shape.
+    static let defaultOcclusionFeatures = ["ink"]
+
+    /// Commands behind `occlusion=`. Handled by the scene.
+    static let occlusionCommands = ["layerOcclude"]
+
+    /// The window fields a host that composites VTG windows appends:
+    /// `windows=experimental` (WINDOW_PLAN.md: not `stable` until BASIC has
+    /// shipped on it), the most windows at once, and that windows hold text.
+    static let windowFeatureFields: [(String, String)] = [
+        ("windows", "experimental"),
+        ("windowMax", String(VTGWindowManager.maximumWindows)),
+        ("windowText", "1"),
+    ]
 }

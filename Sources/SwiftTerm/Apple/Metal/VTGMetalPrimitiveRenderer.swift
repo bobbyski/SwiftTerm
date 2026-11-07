@@ -25,7 +25,48 @@ struct VTGMetalPrimitiveRenderer {
         makeBatches(plan: plan, scale: scale, drawableHeight: drawableHeight).flatMap(\.vertices)
     }
 
+    /// Batches for a plan, with entries whose layer asked for
+    /// `layerOcclude,by=ink` cut out of every hole in `textMask`.
+    ///
+    /// Without a mask, or with no masked entry, this is exactly the original
+    /// batching: the same function, the same vertices.
     static func makeBatches(
+        plan: VTGRenderPlan,
+        scale: CGFloat,
+        drawableHeight: CGFloat,
+        textMask: VTGOcclusionMask? = nil
+    ) -> [Batch] {
+        guard let textMask, !textMask.isEmpty, plan.entries.contains(where: { $0.occlusion == .ink }) else {
+            return makeUnmaskedBatches(plan: plan, scale: scale, drawableHeight: drawableHeight)
+        }
+        let boxes = VTGMetalOcclusionClipper.boxes(
+            visible: textMask.visibleRects(width: plan.canvas.width, height: plan.canvas.height),
+            scale: scale,
+            drawableHeight: drawableHeight
+        )
+        // Consecutive entries with the same occlusion are batched together,
+        // so the plan's stacking order is kept exactly.
+        var batches: [Batch] = []
+        var start = plan.entries.startIndex
+        while start < plan.entries.endIndex {
+            let masked = plan.entries[start].occlusion == .ink
+            var end = start
+            while end < plan.entries.endIndex, (plan.entries[end].occlusion == .ink) == masked {
+                end += 1
+            }
+            let run = VTGRenderPlan(canvas: plan.canvas, plane: plan.plane, entries: Array(plan.entries[start..<end]))
+            for batch in makeUnmaskedBatches(plan: run, scale: scale, drawableHeight: drawableHeight) {
+                let vertices = masked ? VTGMetalOcclusionClipper.clip(batch.vertices, to: boxes) : batch.vertices
+                if !vertices.isEmpty {
+                    batches.append(Batch(clip: batch.clip, vertices: vertices))
+                }
+            }
+            start = end
+        }
+        return batches
+    }
+
+    private static func makeUnmaskedBatches(
         plan: VTGRenderPlan,
         scale: CGFloat,
         drawableHeight: CGFloat

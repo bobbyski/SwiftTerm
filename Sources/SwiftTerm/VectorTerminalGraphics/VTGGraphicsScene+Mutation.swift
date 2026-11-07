@@ -27,6 +27,7 @@ extension VTGGraphicsScene {
         layerAlphas.removeAll()
         viewportModes.removeAll()
         viewportScales.removeAll()
+        layerOcclusions.removeAll()
         hitRegions.removeAll()
         defaultLayer = VTGLayerModel.defaultDrawingLayer
     }

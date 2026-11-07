@@ -34,7 +34,14 @@ extension VTGHostController {
                 canvas: screenCanvas(for: canvas),
                 renderer: renderer,
                 commands: advertisedCommands,
-                events: advertisedEvents
+                events: advertisedEvents,
+                extraFields: (advertisesWindows ? VTGResponseEncoder.windowFeatureFields : [])
+                    + (advertisesRasterText
+                        ? [("rasterText", "erases"),
+                           // The surface is one view-sized image; the queue is the
+                           // only thing that can grow, and this is its cap.
+                           ("rasterQueueMax", String(VTGRasterCanvas.maximumQueuedOperations))]
+                        : [])
             )]
         case "canvas?":
             return [VTGResponseEncoder.canvasResponse(commandName: "canvas", canvas: reportedCanvas(for: canvas))]
@@ -59,7 +66,8 @@ extension VTGHostController {
             setProgramGraphicsLayersVisible(parseEnabled(command.parameters))
             return []
         case "rasterMode":
-            setRasterMode(parseEnabled(command.parameters))
+            setRasterMode(parseEnabled(command.parameters),
+                          textErases: command.parameters["text"] == "erases")
             return []
         case "linkDetection":
             var settings = linkDetectionSettings

@@ -25,6 +25,30 @@ public final class VTGOverlayView: VTGPlatformView {
         }
     }
 
+    /// The raster framebuffer, while a program has raster mode with
+    /// `text=erases` on. Drawn first, under layers 1…4.
+    public var rasterBitmap: VTGRasterBitmap? {
+        didSet { vtgSetNeedsDisplay() }
+    }
+
+    /// Brings `rasterBitmap` up to date just before it is drawn. Set by the
+    /// terminal view, which knows the cell size and owns the queue.
+    var rasterUpdate: (() -> Void)?
+
+    /// Whether the framebuffer is in view: not while the user has scrolled
+    /// back, since it belongs to the live screen.
+    var rasterVisible = true
+
+    /// Where terminal text has ink, in canvas units, for layers that asked
+    /// for `layerOcclude,by=ink`. Nil, the default, draws every layer as VTG
+    /// always has. The terminal view keeps it current as text changes.
+    public var textMask: VTGOcclusionMask? {
+        didSet {
+            guard textMask != oldValue else { return }
+            vtgSetNeedsDisplay()
+        }
+    }
+
     #if os(macOS)
     /// Use top-left origin so VTG pixel coordinates match terminal screenshots.
     ///
@@ -62,13 +86,21 @@ public final class VTGOverlayView: VTGPlatformView {
 
     /// Draw all retained VTG primitives into the current graphics context.
     public override func draw(_ dirtyRect: CGRect) {
-        guard let context = vtgCurrentCGContext(),
-              let scene else {
+        guard let context = vtgCurrentCGContext() else {
+            return
+        }
+        if let rasterBitmap {
+            rasterUpdate?()
+            if rasterVisible {
+                rasterBitmap.draw(in: context, bounds: bounds)
+            }
+        }
+        guard let scene else {
             return
         }
 
         drawLocked(in: context, bounds: bounds) { canvasBounds in
-            draw(scene: scene, plane: overlayCompositingPlane, in: context, bounds: canvasBounds)
+            draw(scene: scene, plane: overlayCompositingPlane, in: context, bounds: canvasBounds, textMask: textMask)
         }
     }
 
@@ -78,19 +110,31 @@ public final class VTGOverlayView: VTGPlatformView {
     /// `plane == nil` draws every retained primitive. Passing `.underText`,
     /// `.textPlane`, or `.overlay` lets terminal renderers and overlays split
     /// the same scene without duplicating parser or scene-state logic.
+    ///
+    /// `textMask` holes are cut out of entries whose layer asked for
+    /// `layerOcclude,by=ink`; every other entry draws exactly as before.
     public func draw(
         scene: VTGGraphicsScene,
         plane: VTGCompositingPlane?,
         in context: CGContext,
-        bounds: CGRect
+        bounds: CGRect,
+        textMask: VTGOcclusionMask? = nil
     ) {
         context.saveGState()
         let plan = scene.renderPlan(
             plane: plane,
             canvas: VTGRenderCanvas(width: bounds.width, height: bounds.height)
         )
+        let holes = textMask.map { $0.rects.map { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) } } ?? []
         for entry in plan.entries {
             context.saveGState()
+            if entry.occlusion == .ink, !holes.isEmpty {
+                // Even-odd over the canvas plus each hole leaves the holes
+                // out. The holes never overlap, which even-odd relies on.
+                context.addRect(bounds)
+                context.addRects(holes)
+                context.clip(using: .evenOdd)
+            }
             context.setAlpha(entry.alpha)
             if let clip = entry.clip {
                 context.clip(to: CGRect(x: clip.x, y: clip.y, width: clip.width, height: clip.height))

@@ -224,9 +224,10 @@ open class LocalProcessVectorTerminalView: VectorTerminalView, TerminalViewDeleg
         tcflush(descriptor, TCOFLUSH)
     }
 
-    /// Feed child process output through the VTG-aware terminal parser.
+    /// Feed child process output through the VTG-aware terminal parser,
+    /// by way of the VTG window router (a no-op until a window exists).
     open func dataReceived(slice: ArraySlice<UInt8>) {
-        feed(byteArray: slice)
+        feedRoutingVTGWindows(slice)
     }
 
     /// Process-backed VTG responses are written back to the child process.

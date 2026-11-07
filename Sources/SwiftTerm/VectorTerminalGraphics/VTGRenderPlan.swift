@@ -32,6 +32,10 @@ public struct VTGRenderPlanEntry: Equatable {
     public var offset: VTGLayerOffset
     public var clip: VTGLayerClip?
     public var viewport: VTGViewportTransform?
+    /// What may hide this entry. `.none` unless the program asked with
+    /// `layerOcclude`; a renderer given a text mask cuts `.ink` entries out of
+    /// every masked cell and draws `.none` entries exactly as before.
+    public var occlusion: VTGLayerOcclusion
 
     public init(
         primitive: VTGPrimitive,
@@ -39,7 +43,8 @@ public struct VTGRenderPlanEntry: Equatable {
         alpha: Double,
         offset: VTGLayerOffset,
         clip: VTGLayerClip?,
-        viewport: VTGViewportTransform?
+        viewport: VTGViewportTransform?,
+        occlusion: VTGLayerOcclusion = .none
     ) {
         self.primitive = primitive
         self.layer = layer
@@ -47,6 +52,7 @@ public struct VTGRenderPlanEntry: Equatable {
         self.offset = offset
         self.clip = clip
         self.viewport = viewport
+        self.occlusion = occlusion
     }
 }
 
@@ -84,7 +90,8 @@ public extension VTGGraphicsScene {
                     for: layer,
                     canvasWidth: canvas.width,
                     canvasHeight: canvas.height
-                )
+                ),
+                occlusion: occlusion(for: layer)
             )
         }
         return VTGRenderPlan(canvas: canvas, plane: plane, entries: entries)

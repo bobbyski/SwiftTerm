@@ -90,7 +90,9 @@ struct VTGPageModeCompatibilityTests {
     @Test func capabilitiesKeepTheirShapeAndAppendPageFeatures() {
         let response = VTGResponseEncoder.capabilities(canvas: canvas)
         #expect(response.contains(",colors=hex-rgb|hex-rgba,page=buffers2|layers|"))
-        #expect(response.contains(",pageMaxLayers=32,text=style|styled|attr|box|measure|fonts\(esc)\\"))
+        #expect(response.contains(",pageMaxLayers=32,text=style|styled|attr|box|measure|fonts"))
+        // WINDOW_PLAN.md appends its own fields after `text=`, and only there.
+        #expect(response.contains(",text=style|styled|attr|box|measure|fonts,occlusion=ink"))
         #expect(!response.contains("pageBegin"), "page commands stay out of the shared commands list")
         #expect(response.contains("version=1.6.4"))
     }

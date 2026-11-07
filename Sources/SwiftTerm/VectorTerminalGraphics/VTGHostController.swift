@@ -49,6 +49,21 @@ public final class VTGHostController {
     public internal(set) var isRasterMode = false
     /// Names the ids raster-mode drawing is given, so none is ever reused.
     var rasterObjectCount = 0
+    /// Whether raster mode was asked for with `text=erases`: drawing goes to
+    /// `rasterCanvas`, a framebuffer the text overwrites (WINDOW_PLAN.md Phase 5).
+    public internal(set) var isRasterTextErasing = false
+    /// The framebuffer queue raster drawing goes to with `text=erases`.
+    public let rasterCanvas = VTGRasterCanvas()
+    /// Told when `text=erases` raster mode starts (with the canvas) or ends
+    /// (nil), so the host can make the canvas its terminal's write observer.
+    var rasterTextModeDidChange: ((VTGRasterCanvas?) -> Void)?
+    /// Whether this host draws `rasterCanvas`, and so advertises
+    /// `rasterText=erases`. Set by a host that drains it each frame.
+    public var advertisesRasterText = false
+    /// Whether this terminal composites VTG windows, and so advertises them.
+    /// Set by a host that wired a `VTGWindowManager` into its feed and its
+    /// compositor; never set for a window's own session, so windows do not nest.
+    public var advertisesWindows = false
     /// Current session-scoped link detection and decoration settings.
     public internal(set) var linkDetectionSettings = VTGLinkDetectionSettings()
 
@@ -135,6 +150,11 @@ public final class VTGHostController {
         // one asked for.
         isRasterMode = false
         rasterObjectCount = 0
+        if isRasterTextErasing {
+            isRasterTextErasing = false
+            rasterCanvas.clear()
+            rasterTextModeDidChange?(nil)
+        }
         linkDetectionSettings = VTGLinkDetectionSettings()
         // A locked screen belongs to the program that asked for it.
         if screenLock != nil {
@@ -210,6 +230,9 @@ public final class VTGHostController {
             }
             if let pageResponses = routeDrawingToPage(command) {
                 responses.append(contentsOf: pageResponses)
+                continue
+            }
+            if isRasterTextErasing, drawIntoRasterCanvas(command) {
                 continue
             }
             activeScene.apply(isRasterMode ? rasterized(command) : command)

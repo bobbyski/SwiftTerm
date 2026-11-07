@@ -18,19 +18,44 @@ extension VTGWindowManager {
                             modifiers: String,
                             scrollX: Int? = nil,
                             scrollY: Int? = nil) -> Bool {
+        // A drag or release while a button is held goes to the window the
+        // press began in, wherever the pointer is now.
+        if type == .drag || type == .up, let capture = mouseCapture {
+            if type == .up {
+                mouseCapture = nil
+            }
+            if let window = windows[capture.id] {
+                return deliverMouse(to: window, framePart: capture.framePart, type: type, button: button,
+                                    at: point, modifiers: modifiers, scrollX: scrollX, scrollY: scrollY)
+            }
+        }
         guard let hit = window(at: point) else {
             return false
         }
+        var framePart: String?
+        if hit.contentPoint == nil {
+            let cell = cellSize()
+            let layout = hit.window.frame.layout(cellWidth: cell.width, cellHeight: cell.height)
+            framePart = layout.titleBar.map { Self.contains($0, point) } == true ? "title" : "border"
+        }
+        if type == .down {
+            mouseCapture = (hit.window.id, framePart)
+        }
+        return deliverMouse(to: hit.window, framePart: framePart, type: type, button: button,
+                            at: point, modifiers: modifiers, scrollX: scrollX, scrollY: scrollY)
+    }
+
+    private func deliverMouse(to window: VTGWindow, framePart: String?, type: VTGMouseEventType, button: Int,
+                              at point: VTGPoint, modifiers: String, scrollX: Int?, scrollY: Int?) -> Bool {
+        let cell = cellSize()
+        let layout = window.frame.layout(cellWidth: cell.width, cellHeight: cell.height)
         // On the border or title bar: the window's, not its content's. A
         // program that asked (`windowEvents`) hears about it, in main-canvas
         // points, so it can drag or raise the window.
-        guard let local = hit.contentPoint else {
+        if let framePart {
             if reportsFrameEvents {
-                let cell = cellSize()
-                let layout = hit.window.frame.layout(cellWidth: cell.width, cellHeight: cell.height)
-                let onTitle = layout.titleBar.map { Self.contains($0, point) } ?? false
-                sendVTG("windowMouse", [("id", hit.window.id),
-                                        ("part", onTitle ? "title" : "border"),
+                sendVTG("windowMouse", [("id", window.id),
+                                        ("part", framePart),
                                         ("type", type.rawValue),
                                         ("button", String(button)),
                                         ("x", String(Int(point.x.rounded(.down)))),
@@ -39,7 +64,7 @@ extension VTGWindowManager {
             }
             return true
         }
-        let cell = cellSize()
+        let local = VTGPoint(x: point.x - layout.content.x, y: point.y - layout.content.y)
         let snapshot = VTGMouseSnapshot(
             x: Int(local.x.rounded(.down)),
             y: Int(local.y.rounded(.down)),
@@ -47,8 +72,8 @@ extension VTGWindowManager {
             cellY: Int(local.y / max(1, cell.height)) + 1,
             modifiers: modifiers
         )
-        hit.window.surface.session.sendMouseEvent(type: type, button: button, snapshot: snapshot,
-                                                  scrollX: scrollX, scrollY: scrollY)
+        window.surface.session.sendMouseEvent(type: type, button: button, snapshot: snapshot,
+                                              scrollX: scrollX, scrollY: scrollY)
         return true
     }
 }

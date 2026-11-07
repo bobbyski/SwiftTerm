@@ -323,6 +323,38 @@ struct WindowFrameEventTests {
         manager.handleMouse(type: .down, button: 0, at: VTGPoint(x: 120, y: 55), modifiers: "")
         #expect(sent.last == vtg("windowMouse,id=w,part=title,type=down,button=0,x=120,y=55,modifiers="))
     }
+
+    @Test("6.5: a drag that leaves the title bar, or the window, stays with the window until the release")
+    func dragCapture() {
+        var sent: [String] = []
+        let manager = VTGWindowManager(cellSize: { (width: 8, height: 16) },
+                                       send: { sent.append(String(decoding: $0, as: UTF8.self)) },
+                                       processRunning: { true })
+        let esc = "\u{1b}"
+        func vtg(_ body: String) -> String { "\(esc)_VTG;\(body)\(esc)\\" }
+        manager.feed(Array((vtg("windowCreate,id=a,cols=10,rows=4,x=100,y=50,title=A")
+                            + vtg("windowCreate,id=b,cols=10,rows=4,x=0,y=200,title=B")
+                            + vtg("windowEvents,enabled=1")).utf8)[...]) { _ in }
+        manager.handleMouse(type: .down, button: 0, at: VTGPoint(x: 120, y: 55), modifiers: "")
+        // Over b's content now, then over nothing: both still a's title drag.
+        #expect(manager.handleMouse(type: .drag, button: 0, at: VTGPoint(x: 20, y: 240), modifiers: ""))
+        #expect(sent.last == vtg("windowMouse,id=a,part=title,type=drag,button=0,x=20,y=240,modifiers="))
+        #expect(manager.handleMouse(type: .drag, button: 0, at: VTGPoint(x: 900, y: 900), modifiers: ""))
+        #expect(sent.last == vtg("windowMouse,id=a,part=title,type=drag,button=0,x=900,y=900,modifiers="))
+        #expect(manager.handleMouse(type: .up, button: 0, at: VTGPoint(x: 900, y: 900), modifiers: ""))
+        #expect(sent.last == vtg("windowMouse,id=a,part=title,type=up,button=0,x=900,y=900,modifiers="))
+        // Released: the next drag over nothing is nobody's.
+        sent.removeAll()
+        #expect(!manager.handleMouse(type: .drag, button: 0, at: VTGPoint(x: 900, y: 900), modifiers: ""))
+        #expect(sent.isEmpty)
+        // A press on the border stays a border drag.
+        manager.handleMouse(type: .down, button: 0, at: VTGPoint(x: 100, y: 120), modifiers: "")
+        manager.handleMouse(type: .drag, button: 0, at: VTGPoint(x: 300, y: 300), modifiers: "")
+        #expect(sent.last == vtg("windowMouse,id=a,part=border,type=drag,button=0,x=300,y=300,modifiers="))
+        // A reset drops the capture with the windows.
+        manager.reset()
+        #expect(!manager.handleMouse(type: .drag, button: 0, at: VTGPoint(x: 120, y: 55), modifiers: ""))
+    }
 }
 
 struct WindowRouterScanTests {

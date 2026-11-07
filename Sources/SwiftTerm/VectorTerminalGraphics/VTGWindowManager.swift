@@ -45,6 +45,11 @@ public final class VTGWindowManager {
     /// The window whose cursor is shown and whose events are reported first,
     /// or nil for the root.
     public internal(set) var focusedWindow: String?
+    /// The window a pressed button belongs to, and the frame part the press
+    /// began on (`title` or `border`; nil for its content): drags and the
+    /// release go there until the button comes up, as AppKit's implicit
+    /// capture does, so a fast drag cannot slip off a title bar.
+    var mouseCapture: (id: String, framePart: String?)?
 
     let router = VTGWindowRouter()
 
@@ -131,6 +136,7 @@ public final class VTGWindowManager {
         order.removeAll()
         focusedWindow = nil
         reportsFrameEvents = false
+        mouseCapture = nil
         router.reset()
         if hadWindows {
             windowsDidChange()
